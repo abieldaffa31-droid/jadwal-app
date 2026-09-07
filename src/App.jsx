@@ -21,84 +21,95 @@ const DAY_THEMES = {
 };
 
 const IMAGE_SCHEDULE_STATE = {
-  'SENIN-SUBUH': { k1: 'Raihan', imam: 'Arga', k2: 'Raihan', badal: 'Fadel' },
-  'SELASA-SUBUH': { k1: 'Nafhan', imam: 'Pak Hafid', k2: 'Wildan', badal: 'Nabiel' },
-  'RABU-SUBUH': { k1: 'Yusuf', imam: 'Arya', k2: 'Wildan', badal: 'Yusuf' },
-  'KAMIS-SUBUH': { k1: 'Fadel', imam: 'Nazar', k2: 'Mujahid', badal: 'Raihan' },
-  'JUM\'AT-SUBUH': { k1: 'Zufar', imam: 'Nazar', k2: 'Yusuf', badal: 'Mujahid' },
-  'SABTU-SUBUH': { k1: 'Nafhan', imam: 'Nazar', k2: 'Zufar', badal: 'Wildan' },
-  'AHAD-SUBUH': { k1: 'Nabiel', imam: 'Pak Zaid', k2: 'Fadel', badal: 'Nafhan' }, 
-  
-  'SENIN-DZUHUR': { adzan: 'Mujahid', imam: 'Bpk-bpk', badal: 'Yusuf' },
-  'SELASA-DZUHUR': { adzan: 'Nafhan', imam: 'Bpk-bpk', badal: 'Wildan' },
-  'RABU-DZUHUR': { adzan: 'Yusuf', imam: 'Bpk-bpk', badal: 'Nafhan' },
-  'KAMIS-DZUHUR': { adzan: 'Mujahid', imam: 'Bpk-bpk', badal: 'Wildan' },
-  'JUM\'AT-DZUHUR': { adzan: 'Cahyo', imam: 'Khatib', badal: 'Nazar' },
-  'SABTU-DZUHUR': { adzan: 'Nafhan', imam: 'Bpk-bpk', badal: 'Zufar' },
-  'AHAD-DZUHUR': { adzan: 'Yusuf', imam: 'Bpk-bpk', badal: 'Zufar' },
-  
-  'SENIN-ASHAR': { adzan: 'Mujahid', imam: 'Bpk-bpk', badal: 'Yusuf' },
-  'SELASA-ASHAR': { adzan: 'Nafhan', imam: 'Bpk-bpk', badal: 'Mujahid' },
-  'RABU-ASHAR': { adzan: 'Wildan', imam: 'Bpk-bpk', badal: 'Mujahid' },
-  'KAMIS-ASHAR': { adzan: 'Mujahid', imam: 'Bpk-bpk', badal: 'Nabiel' },
-  'JUM\'AT-ASHAR': { adzan: 'Fadel', imam: 'Bpk-bpk', badal: 'Nabiel' },
-  'SABTU-ASHAR': { adzan: 'Nabiel', imam: 'Bpk-bpk', badal: 'Raihan' },
-  'AHAD-ASHAR': { adzan: 'Zufar', imam: 'Bpk-bpk', badal: 'Fadel' },
-  
-  'SENIN-MAGHRIB': { adzan: 'Mujahid', imam: 'Cahyo', badal: 'Nabiel' },
-  'SELASA-MAGHRIB': { adzan: 'Raihan', imam: 'Abdur', badal: 'Nabiel' },
-  'RABU-MAGHRIB': { adzan: 'Fadel', imam: 'Arya', badal: 'Nafhan' },
-  'KAMIS-MAGHRIB': { adzan: 'Nabiel', imam: 'Miqdad', badal: 'Fadel' },
-  'JUM\'AT-MAGHRIB': { adzan: 'Raihan', imam: 'Miqdad', badal: 'Fadel' },
-  'SABTU-MAGHRIB': { adzan: 'Wildan', imam: 'Nazar', badal: 'Raihan' },
-  'AHAD-MAGHRIB': { adzan: 'Fadel', imam: 'Pak Zaid', badal: 'Zufar' },
+  // ── SUBUH (k1=Adzan Subuh K1, imam, k2=Adzan Subuh K2, badal) ─────────────
+  'SENIN-SUBUH':   { k1: 'Mujahid',  imam: 'Arga',     k2: 'Wildan',   badal: 'Fadel'   },
+  'SELASA-SUBUH':  { k1: 'Septian',  imam: 'Pak Hafid', k2: 'Raihan',  badal: 'Nabiel'  },
+  'RABU-SUBUH':    { k1: 'Yusuf',    imam: 'Arya',     k2: 'Wildan',   badal: 'Zufar'   },
+  'KAMIS-SUBUH':   { k1: 'Fadel',    imam: 'Nazar',    k2: 'Septian',  badal: 'Raihan'  },
+  "JUM'AT-SUBUH":  { k1: 'Zufar',    imam: 'Nazar',    k2: 'Yusuf',    badal: 'Mujahid' },
+  'SABTU-SUBUH':   { k1: 'Nafhan',   imam: 'Nazar',    k2: 'Zufar',    badal: 'Wildan'  },
+  'AHAD-SUBUH':    { k1: 'Nabiel',   imam: 'Pak Zaid', k2: 'Fadel',    badal: 'Nafhan'  },
 
-  'SENIN-ISYA': { adzan: 'Raihan', imam: 'Nazar', badal: 'Nafhan' },
-  'SELASA-ISYA': { adzan: 'Cahyo', imam: 'Hasim', badal: 'Zufar' },
-  'RABU-ISYA': { adzan: 'Zufar', imam: 'Abdur', badal: 'Raihan' },
-  'KAMIS-ISYA': { adzan: 'Wildan', imam: 'Nazar', badal: 'Yusuf' },
-  'JUM\'AT-ISYA': { adzan: 'Fadel', imam: 'Pak Hafid', badal: 'Zufar' },
-  'SABTU-ISYA': { adzan: 'Nafhan', imam: 'Arga', badal: 'Wildan' },
-  'AHAD-ISYA': { adzan: 'Nabiel', imam: 'Arga', badal: 'Yusuf' },
+  // ── DZUHUR ─────────────────────────────────────────────────────────────────
+  'SENIN-DZUHUR':  { adzan: 'Mujahid', imam: 'Bpk-bpk', badal: 'Septian' },
+  'SELASA-DZUHUR': { adzan: 'Septian', imam: 'Bpk-bpk', badal: 'Nafhan'  },
+  'RABU-DZUHUR':   { adzan: 'Yusuf',   imam: 'Bpk-bpk', badal: 'Nafhan'  },
+  'KAMIS-DZUHUR':  { adzan: 'Mujahid', imam: 'Bpk-bpk', badal: 'Septian' },
+  "JUM'AT-DZUHUR": { adzan: 'Cahyo',   imam: 'Khatib',  badal: 'Nazar'   },
+  'SABTU-DZUHUR':  { adzan: 'Nafhan',  imam: 'Bpk-bpk', badal: 'Zufar'   },
+  'AHAD-DZUHUR':   { adzan: 'Yusuf',   imam: 'Bpk-bpk', badal: 'Zufar'   },
 
-  'HADITS-SENIN': 'Yusuf',
-  'MC-SENIN': 'Yusuf (s)\nRaihan (m)',
-  'HADITS-SELASA': 'Malik',
-  'MC-SELASA': 'Nafhan',
-  'HADITS-RABU': 'Wildan',
-  'MC-RABU': 'Fadel',
-  'HADITS-KAMIS': 'Fadel',
-  'MC-KAMIS': 'Mujahid',
-  'HADITS-JUM\'AT': 'Zufar',
-  'MC-JUM\'AT': 'Nabiel (j)\nYusuf (m)',
-  'HADITS-SABTU': 'Nafhan',
-  'MC-SABTU': 'Wildan',
-  'HADITS-AHAD': '-',
-  'MC-AHAD': 'Nabiel (p)\nMujahid (s)',
+  // ── ASHAR ──────────────────────────────────────────────────────────────────
+  'SENIN-ASHAR':   { adzan: 'Yusuf',   imam: 'Bpk-bpk', badal: 'Mujahid' },
+  'SELASA-ASHAR':  { adzan: 'Nafhan',  imam: 'Bpk-bpk', badal: 'Mujahid' },
+  'RABU-ASHAR':    { adzan: 'Fadel',   imam: 'Bpk-bpk', badal: 'Mujahid' },
+  'KAMIS-ASHAR':   { adzan: 'Mujahid', imam: 'Bpk-bpk', badal: 'Nabiel'  },
+  "JUM'AT-ASHAR":  { adzan: 'Fadel',   imam: 'Bpk-bpk', badal: 'Nabiel'  },
+  'SABTU-ASHAR':   { adzan: 'Nabiel',  imam: 'Bpk-bpk', badal: 'Yusuf'   },
+  'AHAD-ASHAR':    { adzan: 'Nafhan',  imam: 'Bpk-bpk', badal: 'Fadel'   },
 
-  'POSTER-SENIN': 'Nafhan (s)\nRaihan (m)',
-  'POSTER-SELASA': 'Nabiel',
-  'POSTER-RABU': 'Nafhan',
-  'POSTER-KAMIS': 'Wildan',
-  'POSTER-JUM\'AT': 'Raihan (j)\nWildan (m)',
-  'POSTER-SABTU': '-(p)\nNabiel (m)',
-  'POSTER-AHAD': 'Raihan (p)',
+  // ── MAGHRIB ────────────────────────────────────────────────────────────────
+  'SENIN-MAGHRIB':   { adzan: 'Fadel',   imam: 'Cahyo',    badal: 'Nabiel'   },
+  'SELASA-MAGHRIB':  { adzan: 'Raihan',  imam: 'Abdur',    badal: 'Nabiel'   },
+  'RABU-MAGHRIB':    { adzan: 'Fadel',   imam: 'Arya',     badal: 'Nafhan'   },
+  'KAMIS-MAGHRIB':   { adzan: 'Nabiel',  imam: 'Miqdad',   badal: 'Raihan'   },
+  "JUM'AT-MAGHRIB":  { adzan: 'Raihan',  imam: 'Miqdad',   badal: 'Septian'  },
+  'SABTU-MAGHRIB':   { adzan: 'Nafhan',  imam: 'Nazar',    badal: 'Wildan'   },
+  'AHAD-MAGHRIB':    { adzan: 'Fadel',   imam: 'Pak Zaid', badal: 'Zufar'    },
 
-  'STREAMER-SENIN': 'Nabiel (s)\nWildan (m)',
-  'STREAMER-SELASA': 'Nafhan (m)',
-  'STREAMER-RABU': 'AAW/Arga/Nabil (m)',
-  'STREAMER-KAMIS': 'Nafhan (s)',
-  'STREAMER-JUM\'AT': 'Wildan (s)\nZufar (m)',
-  'STREAMER-SABTU': '-(p)\nNafhan (m)',
-  'STREAMER-AHAD': 'Zufar (p)\nYusuf (s)',
+  // ── ISYA ───────────────────────────────────────────────────────────────────
+  'SENIN-ISYA':    { adzan: 'Raihan',  imam: 'Nazar',    badal: 'Septian'  },
+  'SELASA-ISYA':   { adzan: 'Cahyo',   imam: 'Hasim',    badal: 'Zufar'    },
+  'RABU-ISYA':     { adzan: 'Zufar',   imam: 'Abdur',    badal: 'Wildan'   },
+  'KAMIS-ISYA':    { adzan: 'Wildan',  imam: 'Nazar',    badal: 'Yusuf'    },
+  "JUM'AT-ISYA":   { adzan: 'Yusuf',   imam: 'Pak Hafid', badal: 'Wildan'  },
+  'SABTU-ISYA':    { adzan: 'Nafhan',  imam: 'Arga',     badal: 'Raihan'   },
+  'AHAD-ISYA':     { adzan: 'Nabiel',  imam: 'Arga',     badal: 'Yusuf'    },
 
-  'PIKET-SENIN': 'Fadel | Raihan',
-  'PIKET-SELASA': 'Nabiel',
-  'PIKET-RABU': 'Zufar',
-  'PIKET-KAMIS': 'Mujahid',
-  'PIKET-JUM\'AT': 'Wildan',
-  'PIKET-SABTU': 'Yusuf',
-  'PIKET-AHAD': 'Nafhan'
+  // ── HADITS SUBUH ───────────────────────────────────────────────────────────
+  'HADITS-SENIN':   'Yusuf',
+  'HADITS-SELASA':  'Septian',
+  'HADITS-RABU':    'Wildan',
+  'HADITS-KAMIS':   'Fadel',
+  "HADITS-JUM'AT":  'Zufar',
+  'HADITS-SABTU':   'Nafhan',
+  'HADITS-AHAD':    '-',
+
+  // ── MC ─────────────────────────────────────────────────────────────────────
+  'MC-SENIN':   'Yusuf (s)\nRaihan (m)',
+  'MC-SELASA':  'Nafhan',
+  'MC-RABU':    'Fadel',
+  'MC-KAMIS':   'Mujahid',
+  "MC-JUM'AT":  'Septian (j)\nYusuf (m)',
+  'MC-SABTU':   'Wildan',
+  'MC-AHAD':    'Nabiel (p)\nSeptian (s)',
+
+  // ── POSTER ─────────────────────────────────────────────────────────────────
+  'POSTER-SENIN':   'Nafhan (s)\nRaihan (m)',
+  'POSTER-SELASA':  'Nabiel',
+  'POSTER-RABU':    'Nafhan',
+  'POSTER-KAMIS':   'Wildan',
+  "POSTER-JUM'AT":  'Raihan (j)\nWildan (m)',
+  'POSTER-SABTU':   '-(p)\nNabiel (m)',
+  'POSTER-AHAD':    'Raihan (p)',
+
+  // ── STREAMER ───────────────────────────────────────────────────────────────
+  'STREAMER-SENIN':   'Nabiel (s)\nWildan (m)',
+  'STREAMER-SELASA':  'Nafhan (m)',
+  'STREAMER-RABU':    'AAW/Arga/Nabil (m)',
+  'STREAMER-KAMIS':   'Nafhan (s)',
+  "STREAMER-JUM'AT":  'Wildan (s)\nZufar (m)',
+  'STREAMER-SABTU':   '-(p)\nNafhan (m)',
+  'STREAMER-AHAD':    'Zufar (p)\nYusuf (s)',
+
+  // ── PIKET ──────────────────────────────────────────────────────────────────
+  'PIKET-SENIN':   'Fadel | Raihan',
+  'PIKET-SELASA':  'Nabiel',
+  'PIKET-RABU':    'Zufar | Nafhan',
+  'PIKET-KAMIS':   'Mujahid',
+  "PIKET-JUM'AT":  'Wildan',
+  'PIKET-SABTU':   'Yusuf',
+  'PIKET-AHAD':    'Septian',
 };
 
 const ALL_POSSIBLE_NAMES = [...FLEXIBLE_POOL, 'Bpk-bpk', 'Cahyo', 'Nazar', 'Pak Hafid', 'Pak Zaid', 'Arya', 'Abdur', 'Arga', 'Hasim', 'Khatib', 'Miqdad', 'AAW/Arga/Nabil', '-'];
@@ -224,6 +235,21 @@ export default function JadwalApp() {
     let subscription = null;
     let pollInterval = null;
 
+    // Load localStorage sementara cloud belum siap (menghindari layar kosong)
+    const localRaw = localStorage.getItem('jadwal_v14');
+    const localUnavail = localStorage.getItem('unavail_v11');
+    if (localRaw) {
+      try {
+        const localParsed = applyLocks({ ...IMAGE_SCHEDULE_STATE, ...JSON.parse(localRaw) });
+        setSchedule(localParsed);
+      } catch (e) {}
+    } else {
+      setSchedule(applyLocks(IMAGE_SCHEDULE_STATE));
+    }
+    if (localUnavail) {
+      try { setUnavailability(JSON.parse(localUnavail)); } catch (e) {}
+    }
+
     const applyFromCloud = (data) => {
       if (!data?.schedule) return;
       const merged = applyLocks({ ...IMAGE_SCHEDULE_STATE, ...data.schedule });
@@ -235,7 +261,7 @@ export default function JadwalApp() {
       }
     };
 
-    const fetchLatestFromCloud = async () => {
+    const syncWithCloud = async () => {
       if (!supabase) return;
       try {
         const { data } = await supabase
@@ -245,33 +271,48 @@ export default function JadwalApp() {
           .maybeSingle();
 
         if (data?.schedule) {
+          // Cloud punya data → pakai data cloud
           setCloudStatus('connected');
           applyFromCloud(data);
+        } else {
+          // Cloud KOSONG → push jadwal saat ini ke cloud agar /publik bisa baca
+          setCloudStatus('connected');
+          const localSched = localRaw ? JSON.parse(localRaw) : IMAGE_SCHEDULE_STATE;
+          const toSave = applyLocks({ ...IMAGE_SCHEDULE_STATE, ...localSched });
+          const toSaveUnavail = localUnavail ? JSON.parse(localUnavail) : {};
+          await supabase.from('jadwal_takmir').upsert({
+            id: 'default',
+            schedule: toSave,
+            unavailability: toSaveUnavail,
+            updated_at: new Date().toISOString(),
+          });
+          setSchedule(toSave);
+          localStorage.setItem('jadwal_v14', JSON.stringify(toSave));
         }
       } catch (e) {
-        console.error('Supabase fetch error:', e);
+        console.error('Supabase sync error:', e);
+        setCloudStatus('offline');
       }
     };
 
     if (supabase) {
       setCloudStatus('connected');
 
-      // CLOUD IS PRIMARY SOURCE OF TRUTH — fetch cloud FIRST immediately
-      fetchLatestFromCloud().then(() => {
-        // Hanya setelah cloud berhasil, mulai polling & realtime
-        pollInterval = setInterval(fetchLatestFromCloud, 5000);
+      // Sync cloud saat startup
+      syncWithCloud().then(() => {
+        pollInterval = setInterval(syncWithCloud, 8000);
       });
 
       // Realtime push subscription
       subscription = supabase
-        .channel('admin:jadwal_takmir_sync')
+        .channel('admin:jadwal_takmir_sync_v2')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'jadwal_takmir' }, (payload) => {
           if (payload.new?.schedule) applyFromCloud(payload.new);
         })
         .subscribe();
 
       // Sync saat kembali ke tab/focus
-      const handleFocus = () => fetchLatestFromCloud();
+      const handleFocus = () => syncWithCloud();
       window.addEventListener('focus', handleFocus);
 
       return () => {
@@ -280,18 +321,7 @@ export default function JadwalApp() {
         window.removeEventListener('focus', handleFocus);
       };
     } else {
-      // FALLBACK: Offline, pakai localStorage saja
       setCloudStatus('offline');
-      const savedSchedule = localStorage.getItem('jadwal_v14');
-      const savedUnavail = localStorage.getItem('unavail_v11');
-      let currentSched = IMAGE_SCHEDULE_STATE;
-      if (savedSchedule) {
-        try { currentSched = applyLocks({ ...IMAGE_SCHEDULE_STATE, ...JSON.parse(savedSchedule) }); } catch (e) {}
-      }
-      setSchedule(currentSched);
-      if (savedUnavail) {
-        try { setUnavailability(JSON.parse(savedUnavail)); } catch (e) {}
-      }
     }
   }, []);
 

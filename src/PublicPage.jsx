@@ -12,49 +12,43 @@ export default function PublicPage() {
 
   // ── Realtime Supabase & Live Cross-Device Sync ──────────────────────────────
   useEffect(() => {
-    const cached = localStorage.getItem('jadwal_v14');
-    if (cached) {
-      try { setSchedule(JSON.parse(cached)); } catch (e) {}
-    }
-
     const supabase = getSupabase();
     if (!supabase) return;
 
     const fetchLatest = async () => {
       try {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('jadwal_takmir')
-          .select('*')
+          .select('schedule')
           .eq('id', 'default')
           .maybeSingle();
 
         if (data?.schedule) {
           setSchedule(data.schedule);
-          localStorage.setItem('jadwal_v14', JSON.stringify(data.schedule));
         }
       } catch (e) {
         console.error('Supabase public fetch error:', e);
       }
     };
 
+    // Fetch segera saat halaman dibuka
     fetchLatest();
 
-    // 1. Supabase Realtime Subscription (Instant push)
+    // 1. Supabase Realtime Subscription (Instant push saat admin update)
     const sub = supabase
-      .channel('publik:jadwal_takmir_live')
+      .channel('publik:jadwal_takmir_v2')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'jadwal_takmir' }, (payload) => {
         if (payload.new?.schedule) {
           setSchedule(payload.new.schedule);
-          localStorage.setItem('jadwal_v14', JSON.stringify(payload.new.schedule));
         }
       })
       .subscribe();
 
-    // 2. Window focus sync (Kapan pun user kembali ke tab/layar hp)
+    // 2. Window focus sync (saat layar dinyalakan / tab dibuka)
     const handleFocus = () => fetchLatest();
     window.addEventListener('focus', handleFocus);
 
-    // 3. Fallback Poller setiap 5 detik (Menjamin TV/layar publik selalu sinkron 100%)
+    // 3. Fallback Poller setiap 5 detik (untuk TV/layar publik yang tidak ada interaksi)
     const pollInterval = setInterval(fetchLatest, 5000);
 
     return () => {
