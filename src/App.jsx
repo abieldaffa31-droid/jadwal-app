@@ -180,6 +180,8 @@ export default function JadwalApp() {
     const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
   });
   const [attendanceWeek, setAttendanceWeek] = useState('W1');
+  // Modal untuk memilih status presensi & nama pengganti
+  const [attendanceModal, setAttendanceModal] = useState(null);
 
   const scheduleRef = useRef(null);
   const imamScheduleRef = useRef(null);
@@ -447,25 +449,18 @@ export default function JadwalApp() {
     setTimeout(() => setMessage(''), 3000);
   };
 
-  // ── Handler Presensi Kehadiran Per-Slot ──
-  const cycleAttendanceStatus = (month, week, slotKey, assignedPerson) => {
+  // ── Handler Presensi Kehadiran Per-Slot (Modal & Popover Based) ──
+  const setSlotAttendance = (month, week, slotKey, assignedPerson, newStatus, replacedBy = '') => {
     if (!assignedPerson || assignedPerson === '-') return;
-    const current = attendance?.[month]?.[week]?.[slotKey]?.status || '';
-    let next = '';
-    if (!current) next = 'hadir';
-    else if (current === 'hadir') next = 'alpha';
-    else if (current === 'alpha') next = 'izin';
-    else if (current === 'izin') next = 'digantikan';
-    else next = ''; // reset ke kosong
-
     const newAttendance = { ...attendance };
     if (!newAttendance[month]) newAttendance[month] = {};
     if (!newAttendance[month][week]) newAttendance[month][week] = {};
 
-    if (next) {
+    if (newStatus) {
       newAttendance[month][week][slotKey] = {
-        status: next,
+        status: newStatus,
         person: assignedPerson,
+        replacedBy: newStatus === 'digantikan' ? (replacedBy || '') : '',
         updatedAt: Date.now()
       };
     } else {
@@ -475,6 +470,34 @@ export default function JadwalApp() {
     setAttendance(newAttendance);
     localStorage.setItem('attendance_v1', JSON.stringify(newAttendance));
     saveToCloud(schedule, unavailability, true, null, newAttendance);
+  };
+
+  const openAttendanceModal = (slotKey, person, role, label, day, time) => {
+    if (!person || person === '-') return;
+    const record = attendance?.[attendanceMonth]?.[attendanceWeek]?.[slotKey];
+    setAttendanceModal({
+      slotKey,
+      person,
+      role,
+      label,
+      day,
+      time,
+      status: record?.status || '',
+      replacedBy: record?.replacedBy || '',
+    });
+  };
+
+  const handleSelectAttendanceStatus = (status, replacedBy = '') => {
+    if (!attendanceModal) return;
+    const { slotKey, person } = attendanceModal;
+    setSlotAttendance(attendanceMonth, attendanceWeek, slotKey, person, status, replacedBy);
+    setAttendanceModal(null);
+    if (status === 'hadir') setMessage(`✅ ${person} ditandai HADIR`);
+    else if (status === 'alpha') setMessage(`❌ ${person} ditandai ALPHA`);
+    else if (status === 'izin') setMessage(`🤒 ${person} ditandai IZIN / SAKIT`);
+    else if (status === 'digantikan') setMessage(`🔄 ${person} digantikan oleh ${replacedBy || 'pengganti'}`);
+    else setMessage(`⚪ Presensi ${person} direset`);
+    setTimeout(() => setMessage(''), 3000);
   };
 
   const markAllAttendanceForWeek = (month, week, targetStatus = 'hadir') => {
@@ -551,6 +574,7 @@ export default function JadwalApp() {
       let alpha = 0;
       let izin = 0;
       let digantikan = 0;
+      let sebagaiPengganti = 0;
 
       Object.values(monthData).forEach(weekObj => {
         if (!weekObj || typeof weekObj !== 'object') return;
@@ -560,6 +584,9 @@ export default function JadwalApp() {
             else if (record.status === 'alpha') alpha++;
             else if (record.status === 'izin') izin++;
             else if (record.status === 'digantikan') digantikan++;
+          }
+          if (record && record.status === 'digantikan' && record.replacedBy === person) {
+            sebagaiPengganti++;
           }
         });
       });
@@ -582,6 +609,7 @@ export default function JadwalApp() {
         alpha,
         izin,
         digantikan,
+        sebagaiPengganti,
         totalRecorded: hadir + alpha + izin + digantikan,
         status: statusObj,
       };
@@ -2211,6 +2239,7 @@ export default function JadwalApp() {
                           const slotKey = `${key}-${role}`;
                           const record = attendance?.[attendanceMonth]?.[attendanceWeek]?.[slotKey];
                           const status = record?.status || '';
+                          const replacedBy = record?.replacedBy || '';
 
                           let badgeColor = 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100';
                           let icon = '○';
@@ -2222,14 +2251,19 @@ export default function JadwalApp() {
                           return (
                             <button
                               key={slotKey}
-                              onClick={() => cycleAttendanceStatus(attendanceMonth, attendanceWeek, slotKey, name)}
+                              onClick={() => isFlex && openAttendanceModal(slotKey, name, role, label, day, time)}
                               disabled={!isFlex}
                               className={`w-full text-left p-1.5 rounded transition-all border text-[11px] flex items-center justify-between gap-1 ${badgeColor} ${!isFlex ? 'opacity-70 cursor-not-allowed bg-gray-100 text-gray-500' : 'cursor-pointer hover:scale-[1.02]'}`}
-                              title={isFlex ? `Klik untuk ganti status kehadiran ${name} (${label})` : `${name} (Imam/Petugas Tetap)`}
+                              title={isFlex ? `Klik untuk pilih status presensi ${name} (${label})` : `${name} (Imam/Petugas Tetap)`}
                             >
-                              <div className="truncate flex flex-col leading-tight">
+                              <div className="truncate flex flex-col leading-tight min-w-0">
                                 <span className="text-[9px] uppercase font-extrabold opacity-75">{label}</span>
-                                <span className="font-extrabold truncate">{name}</span>
+                                <span className={`font-extrabold truncate ${status === 'digantikan' ? 'line-through opacity-75' : ''}`}>{name}</span>
+                                {status === 'digantikan' && replacedBy && (
+                                  <span className="text-[9px] font-black text-amber-200 truncate flex items-center gap-0.5">
+                                    ➜ {replacedBy}
+                                  </span>
+                                )}
                               </div>
                               <span className="text-xs shrink-0 font-bold">{icon}</span>
                             </button>
@@ -2315,6 +2349,149 @@ export default function JadwalApp() {
         {activeTab === 'publik' && (
           <div className="py-2">
             <PublicView />
+          </div>
+        )}
+
+        {/* MODAL PILIH STATUS PRESENSI & PENGGANTI */}
+        {attendanceModal && (
+          <div 
+            className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150"
+            onClick={() => setAttendanceModal(null)}
+          >
+            <div 
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-100 animate-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header Modal */}
+              <div className="flex justify-between items-start pb-3 mb-4 border-b border-gray-100">
+                <div>
+                  <div className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-md inline-block mb-1">
+                    {attendanceModal.day} · {attendanceModal.time} · {attendanceModal.label}
+                  </div>
+                  <h3 className="text-xl font-extrabold text-gray-900">
+                    {attendanceModal.person}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAttendanceModal(null)}
+                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold flex items-center justify-center transition-colors cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <p className="text-xs font-bold text-gray-500 mb-3">
+                Pilih status kehadiran atau siapa yang menggantikan:
+              </p>
+
+              {/* Pilihan List Status */}
+              <div className="flex flex-col gap-2.5 mb-4">
+                {/* 1. Hadir */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectAttendanceStatus('hadir')}
+                  className={`p-3 rounded-xl border-2 text-left flex items-center justify-between transition-all cursor-pointer ${attendanceModal.status === 'hadir' ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-sm' : 'bg-gray-50 hover:bg-emerald-50/60 border-gray-200 hover:border-emerald-300 text-gray-700'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">✅</span>
+                    <div>
+                      <div className="font-extrabold text-sm text-gray-900">Hadir</div>
+                      <div className="text-xs text-gray-500">Bertugas sesuai jadwal tepat waktu</div>
+                    </div>
+                  </div>
+                  {attendanceModal.status === 'hadir' && <span className="text-emerald-600 font-black text-xs">Aktif</span>}
+                </button>
+
+                {/* 2. Alpha */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectAttendanceStatus('alpha')}
+                  className={`p-3 rounded-xl border-2 text-left flex items-center justify-between transition-all cursor-pointer ${attendanceModal.status === 'alpha' ? 'bg-rose-50 border-rose-500 text-rose-900 shadow-sm' : 'bg-gray-50 hover:bg-rose-50/60 border-gray-200 hover:border-rose-300 text-gray-700'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">❌</span>
+                    <div>
+                      <div className="font-extrabold text-sm text-gray-900">Alpha (Tanpa Izin)</div>
+                      <div className="text-xs text-gray-500">Tidak hadir tanpa keterangan (dihitung ke batas toleransi)</div>
+                    </div>
+                  </div>
+                  {attendanceModal.status === 'alpha' && <span className="text-rose-600 font-black text-xs">Aktif</span>}
+                </button>
+
+                {/* 3. Izin / Sakit */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectAttendanceStatus('izin')}
+                  className={`p-3 rounded-xl border-2 text-left flex items-center justify-between transition-all cursor-pointer ${attendanceModal.status === 'izin' ? 'bg-amber-50 border-amber-500 text-amber-900 shadow-sm' : 'bg-gray-50 hover:bg-amber-50/60 border-gray-200 hover:border-amber-300 text-gray-700'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">🤒</span>
+                    <div>
+                      <div className="font-extrabold text-sm text-gray-900">Izin / Sakit</div>
+                      <div className="text-xs text-gray-500">Ada konfirmasi izin/sakit (tidak dihitung alpha)</div>
+                    </div>
+                  </div>
+                  {attendanceModal.status === 'izin' && <span className="text-amber-600 font-black text-xs">Aktif</span>}
+                </button>
+
+                {/* 4. Digantikan */}
+                <div className={`p-3 rounded-xl border-2 transition-all ${attendanceModal.status === 'digantikan' ? 'bg-indigo-50/80 border-indigo-500' : 'bg-gray-50 border-gray-200'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🔄</span>
+                      <div>
+                        <div className="font-extrabold text-sm text-gray-900">Digantikan (Badal)</div>
+                        <div className="text-xs text-gray-500">Tugas dialihkan ke takmir lain (tidak dihitung alpha)</div>
+                      </div>
+                    </div>
+                    {attendanceModal.status === 'digantikan' && <span className="text-indigo-600 font-black text-xs">Aktif</span>}
+                  </div>
+
+                  {/* List Nama Takmir Pengganti */}
+                  <div className="mt-3 pt-3 border-t border-indigo-200/80">
+                    <div className="text-xs font-bold text-indigo-950 mb-2 flex items-center justify-between">
+                      <span className="flex items-center gap-1"><span>👤</span> Klik nama takmir pengganti:</span>
+                      {attendanceModal.replacedBy && (
+                        <span className="text-indigo-700 font-extrabold">Dipilih: {attendanceModal.replacedBy}</span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto custom-scroll p-1 bg-white/60 rounded-lg border border-indigo-100">
+                      {flexiblePool
+                        .filter(p => p !== attendanceModal.person)
+                        .map(p => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => handleSelectAttendanceStatus('digantikan', p)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${attendanceModal.status === 'digantikan' && attendanceModal.replacedBy === p ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm scale-105' : 'bg-white hover:bg-indigo-100 text-gray-800 border-gray-300 hover:border-indigo-400'}`}
+                          >
+                            {p}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tombol Reset / Belum Dicatat */}
+              <div className="flex justify-between items-center pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => handleSelectAttendanceStatus('')}
+                  className="text-xs font-bold text-gray-400 hover:text-red-600 transition-colors py-1 cursor-pointer"
+                >
+                  ⚪ Hapus Presensi (Belum Dicatat)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAttendanceModal(null)}
+                  className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
