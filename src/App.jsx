@@ -5,10 +5,6 @@ import { getSupabase } from './supabaseClient';
 const DAYS = ['SENIN', 'SELASA', 'RABU', 'KAMIS', "JUM'AT", 'SABTU', 'AHAD'];
 const TIMES = ['SUBUH', 'DZUHUR', 'ASHAR', 'MAGHRIB', 'ISYA'];
 
-const FLEXIBLE_POOL = [
-  'Septian', 'Raihan', 'Nafhan', 'Yusuf', 'Malik', 'Nabiel', 
-  'Mujahid', 'Nurdin', 'Zufar', 'Fadel', 'Wildan'
-];
 
 const DAY_THEMES = {
   'SENIN': { header: 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-300/50', cell: 'bg-gradient-to-b from-blue-50/80 to-white border-blue-100' },
@@ -112,7 +108,13 @@ const IMAGE_SCHEDULE_STATE = {
   'PIKET-AHAD':    'Septian',
 };
 
-const ALL_POSSIBLE_NAMES = [...FLEXIBLE_POOL, 'Bpk-bpk', 'Cahyo', 'Nazar', 'Pak Hafid', 'Pak Zaid', 'Arya', 'Abdur', 'Arga', 'Hasim', 'Khatib', 'Miqdad', 'AAW/Arga/Nabil', '-'];
+const DEFAULT_FLEXIBLE_POOL = [
+  'Septian', 'Raihan', 'Nafhan', 'Yusuf', 'Malik', 'Nabiel', 
+  'Mujahid', 'Nurdin', 'Zufar', 'Fadel', 'Wildan'
+];
+
+// Nama-nama non-flexible (imam tetap, dll.) — dipakai di dropdown
+const STATIC_NAMES = ['Bpk-bpk', 'Cahyo', 'Nazar', 'Pak Hafid', 'Pak Zaid', 'Arya', 'Abdur', 'Arga', 'Hasim', 'Khatib', 'Miqdad', 'AAW/Arga/Nabil', '-'];
 
 // Slot yang DIKUNCI — tidak akan berubah saat Generate / Patch
 const LOCKED_CELLS = {
@@ -136,7 +138,28 @@ const applyLocks = (sched) => {
 export default function JadwalApp() {
   const [activeTab, setActiveTab] = useState('jadwal');
   const [unavailability, setUnavailability] = useState({});
-  const [selectedPerson, setSelectedPerson] = useState(FLEXIBLE_POOL[0]);
+
+  // ── Anggota takmir yang bisa di-assign (dinamis, bisa tambah/hapus) ──
+  const [flexiblePool, setFlexiblePool] = useState(() => {
+    try {
+      const saved = localStorage.getItem('flex_pool_v1');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [...DEFAULT_FLEXIBLE_POOL];
+  });
+  const [newMemberInput, setNewMemberInput] = useState('');
+
+  // Nama-nama yang muncul di dropdown sel jadwal (flexiblePool + nama tetap, tanpa duplikat)
+  const ALL_POSSIBLE_NAMES = [...new Set([...flexiblePool, ...STATIC_NAMES])];
+  const DROPDOWN_NAMES = [...new Set([...flexiblePool, ...STATIC_NAMES])];
+
+  const [selectedPerson, setSelectedPerson] = useState(() => {
+    try {
+      const saved = localStorage.getItem('flex_pool_v1');
+      if (saved) { const pool = JSON.parse(saved); return pool[0] || DEFAULT_FLEXIBLE_POOL[0]; }
+    } catch (e) {}
+    return DEFAULT_FLEXIBLE_POOL[0];
+  });
   const [schedule, setSchedule] = useState(IMAGE_SCHEDULE_STATE);
   const [history, setHistory] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
@@ -147,11 +170,22 @@ export default function JadwalApp() {
 
   // Supabase Cloud States
   const [cloudStatus, setCloudStatus] = useState('offline'); // 'offline' | 'connected'
-  
+
+  // ── Kehadiran (Attendance) ──
+  const [attendance, setAttendance] = useState(() => {
+    try { const s = localStorage.getItem('attendance_v1'); if (s) return JSON.parse(s); } catch(e) {}
+    return {};
+  });
+  const [attendanceMonth, setAttendanceMonth] = useState(() => {
+    const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
+  });
+  const [attendanceWeek, setAttendanceWeek] = useState('W1');
+
   const scheduleRef = useRef(null);
   const imamScheduleRef = useRef(null);
   const fileInputRef = useRef(null);
   const cloudSaveTimerRef = useRef(null);
+  const lastUnavailLocalWriteRef = useRef(0);
 
   const pushHistory = (currentSched) => {
     setHistory(prev => [...prev.slice(-30), currentSched]);
@@ -204,16 +238,23 @@ export default function JadwalApp() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [history, redoStack, schedule, unavailability]);
 
-  const saveToCloud = (newSchedule, newUnavail, instant = false) => {
+  const saveToCloud = (newSchedule, newUnavail, instant = false, newPool = null, newAttendance = null) => {
     const supabase = getSupabase();
     if (!supabase) return;
     
     const doSave = async () => {
       try {
+        const currentPool = newPool || flexiblePool;
+        const currentAttendance = newAttendance !== null ? newAttendance : attendance;
+        const scheduleWithMeta = {
+          ...(newSchedule || schedule),
+          __members: currentPool, // Simpan daftar anggota di dalam schedule JSONB
+        };
         const payload = {
           id: 'default',
-          schedule: newSchedule || schedule,
+          schedule: scheduleWithMeta,
           unavailability: newUnavail || unavailability,
+          attendance: currentAttendance,
           updated_at: new Date().toISOString(),
         };
         await supabase.from('jadwal_takmir').upsert(payload);
@@ -238,26 +279,53 @@ export default function JadwalApp() {
     // Load localStorage sementara cloud belum siap (menghindari layar kosong)
     const localRaw = localStorage.getItem('jadwal_v14');
     const localUnavail = localStorage.getItem('unavail_v11');
+    const localAttend = localStorage.getItem('attendance_v1');
     if (localRaw) {
       try {
-        const localParsed = applyLocks({ ...IMAGE_SCHEDULE_STATE, ...JSON.parse(localRaw) });
+        // Pakai data localStorage murni, jangan di-mix dengan IMAGE_SCHEDULE_STATE
+        const localParsed = applyLocks(JSON.parse(localRaw));
         setSchedule(localParsed);
-      } catch (e) {}
+      } catch (e) {
+        setSchedule(applyLocks(IMAGE_SCHEDULE_STATE));
+      }
     } else {
       setSchedule(applyLocks(IMAGE_SCHEDULE_STATE));
     }
     if (localUnavail) {
       try { setUnavailability(JSON.parse(localUnavail)); } catch (e) {}
     }
+    if (localAttend) {
+      try { setAttendance(JSON.parse(localAttend)); } catch (e) {}
+    }
 
     const applyFromCloud = (data) => {
       if (!data?.schedule) return;
-      const merged = applyLocks({ ...IMAGE_SCHEDULE_STATE, ...data.schedule });
+
+      // Extract __members dari schedule jika ada (untuk sync daftar anggota lintas device)
+      const rawSchedule = { ...data.schedule };
+      if (rawSchedule.__members && Array.isArray(rawSchedule.__members)) {
+        const cloudPool = rawSchedule.__members;
+        setFlexiblePool(cloudPool);
+        localStorage.setItem('flex_pool_v1', JSON.stringify(cloudPool));
+        delete rawSchedule.__members;
+      }
+
+      // Pakai data cloud murni + apply locks, TANPA spread IMAGE_SCHEDULE_STATE
+      const merged = applyLocks(rawSchedule);
       setSchedule(merged);
       localStorage.setItem('jadwal_v14', JSON.stringify(merged));
-      if (data.unavailability && Object.keys(data.unavailability).length > 0) {
+
+      // PENTING: Jangan overwrite unavailability jika user baru saja mengubahnya secara lokal
+      const timeSinceLocalWrite = Date.now() - lastUnavailLocalWriteRef.current;
+      if (data.unavailability && Object.keys(data.unavailability).length > 0 && timeSinceLocalWrite > 15000) {
         setUnavailability(data.unavailability);
         localStorage.setItem('unavail_v11', JSON.stringify(data.unavailability));
+      }
+
+      // Sync data presensi kehadiran dari cloud
+      if (data.attendance && typeof data.attendance === 'object') {
+        setAttendance(data.attendance);
+        localStorage.setItem('attendance_v1', JSON.stringify(data.attendance));
       }
     };
 
@@ -280,10 +348,12 @@ export default function JadwalApp() {
           const localSched = localRaw ? JSON.parse(localRaw) : IMAGE_SCHEDULE_STATE;
           const toSave = applyLocks({ ...IMAGE_SCHEDULE_STATE, ...localSched });
           const toSaveUnavail = localUnavail ? JSON.parse(localUnavail) : {};
+          const toSaveAttend = localAttend ? JSON.parse(localAttend) : {};
           await supabase.from('jadwal_takmir').upsert({
             id: 'default',
             schedule: toSave,
             unavailability: toSaveUnavail,
+            attendance: toSaveAttend,
             updated_at: new Date().toISOString(),
           });
           setSchedule(toSave);
@@ -328,9 +398,12 @@ export default function JadwalApp() {
   const handleUnavailChange = (day, time) => {
     const key = `${selectedPerson}-${day}-${time}`;
     const newUnavail = { ...unavailability, [key]: !unavailability[key] };
+    // Set timestamp write lock — mencegah cloud polling overwrite dalam 15 detik
+    lastUnavailLocalWriteRef.current = Date.now();
     setUnavailability(newUnavail);
     localStorage.setItem('unavail_v11', JSON.stringify(newUnavail));
-    saveToCloud(schedule, newUnavail);
+    // Simpan LANGSUNG ke cloud (instant=true), bukan debounce, agar tidak kalah race dengan polling
+    saveToCloud(schedule, newUnavail, true);
   };
 
   const selectAllUnavail = (value) => {
@@ -340,9 +413,181 @@ export default function JadwalApp() {
         newUnavail[`${selectedPerson}-${day}-${time}`] = value;
       });
     });
+    // Set timestamp write lock
+    lastUnavailLocalWriteRef.current = Date.now();
     setUnavailability(newUnavail);
     localStorage.setItem('unavail_v11', JSON.stringify(newUnavail));
-    saveToCloud(schedule, newUnavail);
+    saveToCloud(schedule, newUnavail, true);
+  };
+
+  // ── Tambah anggota baru ke flexible pool ──
+  const handleAddMember = () => {
+    const name = newMemberInput.trim();
+    if (!name) { setMessage('Nama tidak boleh kosong!'); setTimeout(() => setMessage(''), 2000); return; }
+    if (flexiblePool.includes(name)) { setMessage(`"${name}" sudah ada dalam daftar!`); setTimeout(() => setMessage(''), 2500); return; }
+    const newPool = [...flexiblePool, name];
+    setFlexiblePool(newPool);
+    setNewMemberInput('');
+    setSelectedPerson(name);
+    localStorage.setItem('flex_pool_v1', JSON.stringify(newPool));
+    saveToCloud(schedule, unavailability, true, newPool);
+    setMessage(`✅ "${name}" berhasil ditambahkan!`);
+    setTimeout(() => setMessage(''), 3000);
+  };
+
+  // ── Hapus anggota dari flexible pool ──
+  const handleRemoveMember = (name) => {
+    if (flexiblePool.length <= 1) { setMessage('Minimal harus ada 1 anggota!'); setTimeout(() => setMessage(''), 2500); return; }
+    const newPool = flexiblePool.filter(p => p !== name);
+    setFlexiblePool(newPool);
+    if (selectedPerson === name) setSelectedPerson(newPool[0]);
+    localStorage.setItem('flex_pool_v1', JSON.stringify(newPool));
+    saveToCloud(schedule, unavailability, true, newPool);
+    setMessage(`🗑️ "${name}" dihapus dari daftar anggota.`);
+    setTimeout(() => setMessage(''), 3000);
+  };
+
+  // ── Handler Presensi Kehadiran Per-Slot ──
+  const cycleAttendanceStatus = (month, week, slotKey, assignedPerson) => {
+    if (!assignedPerson || assignedPerson === '-') return;
+    const current = attendance?.[month]?.[week]?.[slotKey]?.status || '';
+    let next = '';
+    if (!current) next = 'hadir';
+    else if (current === 'hadir') next = 'alpha';
+    else if (current === 'alpha') next = 'izin';
+    else if (current === 'izin') next = 'digantikan';
+    else next = ''; // reset ke kosong
+
+    const newAttendance = { ...attendance };
+    if (!newAttendance[month]) newAttendance[month] = {};
+    if (!newAttendance[month][week]) newAttendance[month][week] = {};
+
+    if (next) {
+      newAttendance[month][week][slotKey] = {
+        status: next,
+        person: assignedPerson,
+        updatedAt: Date.now()
+      };
+    } else {
+      delete newAttendance[month][week][slotKey];
+    }
+
+    setAttendance(newAttendance);
+    localStorage.setItem('attendance_v1', JSON.stringify(newAttendance));
+    saveToCloud(schedule, unavailability, true, null, newAttendance);
+  };
+
+  const markAllAttendanceForWeek = (month, week, targetStatus = 'hadir') => {
+    const newAttendance = { ...attendance };
+    if (!newAttendance[month]) newAttendance[month] = {};
+    const weekData = { ...(newAttendance[month][week] || {}) };
+
+    DAYS.forEach(day => {
+      TIMES.forEach(time => {
+        const key = `${day}-${time}`;
+        const slot = schedule[key];
+        if (!slot) return;
+        const roles = time === 'SUBUH' ? ['k1', 'k2', 'imam', 'badal'] : ['adzan', 'imam', 'badal'];
+        roles.forEach(role => {
+          const person = slot[role];
+          if (person && person !== '-' && flexiblePool.includes(person)) {
+            const slotKey = `${key}-${role}`;
+            weekData[slotKey] = {
+              status: targetStatus,
+              person: person,
+              updatedAt: Date.now()
+            };
+          }
+        });
+      });
+    });
+
+    newAttendance[month][week] = weekData;
+    setAttendance(newAttendance);
+    localStorage.setItem('attendance_v1', JSON.stringify(newAttendance));
+    saveToCloud(schedule, unavailability, true, null, newAttendance);
+    setMessage(`✅ Semua slot takmir minggu ini ditandai "${targetStatus === 'hadir' ? 'HADIR' : targetStatus}"!`);
+    setTimeout(() => setMessage(''), 3000);
+  };
+
+  const clearAttendanceForWeek = (month, week) => {
+    const newAttendance = { ...attendance };
+    if (newAttendance[month] && newAttendance[month][week]) {
+      delete newAttendance[month][week];
+      setAttendance(newAttendance);
+      localStorage.setItem('attendance_v1', JSON.stringify(newAttendance));
+      saveToCloud(schedule, unavailability, true, null, newAttendance);
+      setMessage('🗑️ Presensi minggu ini berhasil direset.');
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  // ── Hitung Statistik & Parameter Realita Kehadiran Bulanan ──
+  const getAttendanceStats = (monthKey) => {
+    const monthData = attendance?.[monthKey] || {};
+    const result = {};
+
+    flexiblePool.forEach(person => {
+      // Hitung jadwal per pekan berdasarkan schedule yang sedang aktif
+      let weeklyCount = 0;
+      DAYS.forEach(day => {
+        TIMES.forEach(time => {
+          const slot = schedule[`${day}-${time}`];
+          if (!slot) return;
+          const roles = time === 'SUBUH' ? ['k1', 'k2', 'imam', 'badal'] : ['adzan', 'imam', 'badal'];
+          roles.forEach(role => {
+            if (slot[role] === person) weeklyCount++;
+          });
+        });
+        if (schedule[`HADITS-${day}`] === person) weeklyCount++;
+      });
+
+      const monthlyEstimate = weeklyCount * 4;
+      // Rumus proporsional ambang batas: 5 ketidakhadiran tanpa izin jika 32 jadwal/bulan
+      const thresholdAlpha = monthlyEstimate > 0 ? Math.max(1, Math.round((5 * monthlyEstimate) / 32)) : 0;
+
+      // Hitung realita dari presensi bulan ini (akumulasi seluruh minggu W1..W5)
+      let hadir = 0;
+      let alpha = 0;
+      let izin = 0;
+      let digantikan = 0;
+
+      Object.values(monthData).forEach(weekObj => {
+        if (!weekObj || typeof weekObj !== 'object') return;
+        Object.values(weekObj).forEach(record => {
+          if (record && record.person === person) {
+            if (record.status === 'hadir') hadir++;
+            else if (record.status === 'alpha') alpha++;
+            else if (record.status === 'izin') izin++;
+            else if (record.status === 'digantikan') digantikan++;
+          }
+        });
+      });
+
+      // Status evaluasi (hanya alpha tanpa izin yang dihitung ke threshold)
+      let statusObj = { label: 'Baik', badge: 'bg-emerald-100 text-emerald-800 border-emerald-300', emoji: '🟢' };
+      if (thresholdAlpha > 0) {
+        if (alpha > thresholdAlpha) {
+          statusObj = { label: 'Kritis', badge: 'bg-rose-100 text-rose-800 border-rose-300', emoji: '🔴' };
+        } else if (alpha === thresholdAlpha && alpha > 0) {
+          statusObj = { label: 'Perhatian', badge: 'bg-amber-100 text-amber-800 border-amber-300', emoji: '🟡' };
+        }
+      }
+
+      result[person] = {
+        weeklyCount,
+        monthlyEstimate,
+        thresholdAlpha,
+        hadir,
+        alpha,
+        izin,
+        digantikan,
+        totalRecorded: hadir + alpha + izin + digantikan,
+        status: statusObj,
+      };
+    });
+
+    return result;
   };
 
   const updateCell = (cellKey, field, value) => {
@@ -436,14 +681,14 @@ export default function JadwalApp() {
 
   // Fitur 1: cek apakah person bertabrakan dengan unavailability di slot tertentu
   const hasConflict = (personName, day, time) => {
-    if (!personName || !FLEXIBLE_POOL.includes(personName)) return false;
+    if (!personName || !flexiblePool.includes(personName)) return false;
     return !!unavailability[`${personName}-${day}-${time}`];
   };
 
   // Fitur 2: hitung distribusi adzan & badal per orang
   const computeDistribution = (sched) => {
     const dist = {};
-    FLEXIBLE_POOL.forEach(p => { dist[p] = { adzan: 0, badal: 0, k1k2: 0, total: 0 }; });
+    flexiblePool.forEach(p => { dist[p] = { adzan: 0, badal: 0, k1k2: 0, total: 0 }; });
     Object.keys(sched).forEach(key => {
       const cell = sched[key];
       if (typeof cell !== 'object' || cell === null) return;
@@ -465,7 +710,7 @@ export default function JadwalApp() {
     setTimeout(() => {
       let newSched = { ...schedule };
       let taskCounts = {};
-      FLEXIBLE_POOL.forEach(p => taskCounts[p] = 0);
+      flexiblePool.forEach(p => taskCounts[p] = 0);
 
       // Helper: cek apakah role pada slot ini dikunci
       const isRoleLocked = (day, time, role) => {
@@ -477,6 +722,7 @@ export default function JadwalApp() {
         TIMES.forEach(time => {
           const key = `${day}-${time}`;
           const currentSlot = schedule[key];
+          let slotCopy = { ...currentSlot }; // PENTING: spread dulu biar tidak mutasi state asli
           let assigned = [];
 
           // Tambahkan locked persons ke assigned agar tidak dobel
@@ -485,48 +731,49 @@ export default function JadwalApp() {
 
           if (time === 'SUBUH') {
              if (!isRoleLocked(day, time, 'k1')) {
-               let k1 = getLeastUsedPerson(taskCounts, FLEXIBLE_POOL, day, time, assigned);
-               newSched[key].k1 = k1; assigned.push(k1);
-             } else { assigned.push(newSched[key].k1); }
+               let k1 = getLeastUsedPerson(taskCounts, flexiblePool, day, time, assigned);
+               slotCopy.k1 = k1; assigned.push(k1);
+             } else { assigned.push(slotCopy.k1); }
 
              if (!isRoleLocked(day, time, 'k2')) {
-               let k2 = getLeastUsedPerson(taskCounts, FLEXIBLE_POOL, day, time, assigned);
-               newSched[key].k2 = k2; assigned.push(k2);
-             } else { assigned.push(newSched[key].k2); }
+               let k2 = getLeastUsedPerson(taskCounts, flexiblePool, day, time, assigned);
+               slotCopy.k2 = k2; assigned.push(k2);
+             } else { assigned.push(slotCopy.k2); }
 
              if (!isRoleLocked(day, time, 'imam')) {
                const patenImamSubuh = ['Nazar', 'Pak Hafid', 'Arya', 'Pak Zaid', 'Arga'];
                if (!patenImamSubuh.includes(currentSlot.imam)) {
-                 let imam = getLeastUsedPerson(taskCounts, FLEXIBLE_POOL, day, time, assigned);
-                 newSched[key].imam = imam; assigned.push(imam);
-               } else { assigned.push(newSched[key].imam); }
-             } else { assigned.push(newSched[key].imam); }
+                 let imam = getLeastUsedPerson(taskCounts, flexiblePool, day, time, assigned);
+                 slotCopy.imam = imam; assigned.push(imam);
+               } else { assigned.push(slotCopy.imam); }
+             } else { assigned.push(slotCopy.imam); }
 
              if (!isRoleLocked(day, time, 'badal')) {
-               let badal = getLeastUsedPerson(taskCounts, FLEXIBLE_POOL, day, time, assigned);
-               newSched[key].badal = badal; assigned.push(badal);
+               let badal = getLeastUsedPerson(taskCounts, flexiblePool, day, time, assigned);
+               slotCopy.badal = badal; assigned.push(badal);
              }
           } else {
              if (!isRoleLocked(day, time, 'adzan')) {
                if (!(day === "JUM'AT" && time === "DZUHUR")) {
-                 let adzan = getLeastUsedPerson(taskCounts, FLEXIBLE_POOL, day, time, assigned);
-                 newSched[key].adzan = adzan; assigned.push(adzan);
-               } else { assigned.push(newSched[key].adzan); }
-             } else { assigned.push(newSched[key].adzan); }
+                 let adzan = getLeastUsedPerson(taskCounts, flexiblePool, day, time, assigned);
+                 slotCopy.adzan = adzan; assigned.push(adzan);
+               } else { assigned.push(slotCopy.adzan); }
+             } else { assigned.push(slotCopy.adzan); }
 
              if (!isRoleLocked(day, time, 'imam')) {
                const isPatenImam = ['Bpk-bpk', 'Cahyo', 'Arga', 'Miqdad', 'Nazar', 'Pak Zaid', 'Hasim', 'Pak Hafid', 'Abdur', 'Khatib', 'Arya'].includes(currentSlot.imam);
                if (!isPatenImam) {
-                 let imam = getLeastUsedPerson(taskCounts, FLEXIBLE_POOL, day, time, assigned);
-                 newSched[key].imam = imam; assigned.push(imam);
-               } else { assigned.push(newSched[key].imam); }
-             } else { assigned.push(newSched[key].imam); }
+                 let imam = getLeastUsedPerson(taskCounts, flexiblePool, day, time, assigned);
+                 slotCopy.imam = imam; assigned.push(imam);
+               } else { assigned.push(slotCopy.imam); }
+             } else { assigned.push(slotCopy.imam); }
 
              if (!isRoleLocked(day, time, 'badal')) {
-               let badal = getLeastUsedPerson(taskCounts, FLEXIBLE_POOL, day, time, assigned);
-               newSched[key].badal = badal; assigned.push(badal);
+               let badal = getLeastUsedPerson(taskCounts, flexiblePool, day, time, assigned);
+               slotCopy.badal = badal; assigned.push(badal);
              }
           }
+          newSched[key] = slotCopy;
         });
       });
 
@@ -568,10 +815,10 @@ export default function JadwalApp() {
               if (currentSlot[role]) {
                 const person = currentSlot[role];
                 const isLocked = LOCKED_CELLS[key] && LOCKED_CELLS[key][role] !== undefined;
-                if (!isLocked && FLEXIBLE_POOL.includes(person) && !isAvailable(person, day, time)) {
+                if (!isLocked && flexiblePool.includes(person) && !isAvailable(person, day, time)) {
                   assigned = assigned.filter(p => p !== person);
                   const counts = computeDistribution(newSched);
-                  const availableCandidates = FLEXIBLE_POOL.filter(p => isAvailable(p, day, time) && !assigned.includes(p));
+                  const availableCandidates = flexiblePool.filter(p => isAvailable(p, day, time) && !assigned.includes(p));
                   if (availableCandidates.length > 0) {
                     availableCandidates.sort((a, b) => (counts[a]?.total || 0) - (counts[b]?.total || 0));
                     const replacement = availableCandidates[0];
@@ -586,8 +833,69 @@ export default function JadwalApp() {
           });
         });
 
+        // ── 1.5 Enforce BATAS MAKS 2 Adzan Subuh per orang ──────────────────
+        // Hitung berapa k1+k2 setiap orang di seluruh slot SUBUH
+        let subuhCapped = 0;
+        {
+          const countSubuhAdzan = () => {
+            const counter = {};
+            flexiblePool.forEach(p => { counter[p] = 0; });
+            DAYS.forEach(day => {
+              const slot = newSched[`${day}-SUBUH`];
+              if (!slot) return;
+              if (slot.k1 && counter[slot.k1] !== undefined) counter[slot.k1]++;
+              if (slot.k2 && counter[slot.k2] !== undefined) counter[slot.k2]++;
+            });
+            return counter;
+          };
+
+          // Iterasi sampai tidak ada lagi yang > 2 (max 20 iterasi)
+          for (let iter = 0; iter < 20; iter++) {
+            const subuhCount = countSubuhAdzan();
+            const overloaded = flexiblePool.filter(p => subuhCount[p] > 2);
+            if (overloaded.length === 0) break;
+
+            let madeSwap = false;
+            for (const heavy of overloaded) {
+              // Cari slot SUBUH yang dipegang heavy (k1 atau k2), yang tidak dikunci
+              for (const day of DAYS) {
+                if (subuhCount[heavy] <= 2) break;
+                const key = `${day}-SUBUH`;
+                const slot = { ...newSched[key] };
+
+                for (const role of ['k1', 'k2']) {
+                  if (subuhCount[heavy] <= 2) break;
+                  if (LOCKED_CELLS[key]?.[role]) continue; // slot dikunci, skip
+                  if (slot[role] !== heavy) continue;
+
+                  // Cari pengganti: orang yang punya < 2 Subuh Adzan, tersedia, & belum di slot ini
+                  const alreadyInSlot = Object.values(slot);
+                  const candidate = flexiblePool
+                    .filter(p =>
+                      p !== heavy &&
+                      subuhCount[p] < 2 &&
+                      isAvailable(p, day, 'SUBUH') &&
+                      !alreadyInSlot.includes(p)
+                    )
+                    .sort((a, b) => subuhCount[a] - subuhCount[b])[0];
+
+                  if (candidate) {
+                    slot[role] = candidate;
+                    subuhCount[heavy]--;
+                    subuhCount[candidate]++;
+                    newSched[key] = slot;
+                    subuhCapped++;
+                    madeSwap = true;
+                  }
+                }
+              }
+            }
+            if (!madeSwap) break; // Tidak bisa swap lebih lanjut
+          }
+        }
+
         // ── 2. Identify active members & underutilized members ──
-        const activeMembers = FLEXIBLE_POOL.filter(p =>
+        const activeMembers = flexiblePool.filter(p =>
           DAYS.some(d => TIMES.some(t => isAvailable(p, d, t)))
         );
 
@@ -624,7 +932,7 @@ export default function JadwalApp() {
                   if (currentSubuhAdzan >= 2) break;
                   if (LOCKED_CELLS[key] && LOCKED_CELLS[key][role]) continue;
                   const owner = slot[role];
-                  if (owner && FLEXIBLE_POOL.includes(owner) && (counts[owner]?.total || 0) > targetTotal) {
+                  if (owner && flexiblePool.includes(owner) && (counts[owner]?.total || 0) > targetTotal) {
                     slot[role] = targetMember;
                     currentSubuhAdzan++;
                     balancedCount++;
@@ -658,15 +966,25 @@ export default function JadwalApp() {
 
               const counts = computeDistribution(newSched);
 
+              // Hitung sudah berapa k1+k2 Subuh yang dipegang targetMember saat ini
+              const currentSubuhCount = DAYS.reduce((acc, d) => {
+                const s = newSched[`${d}-SUBUH`];
+                if (s?.k1 === targetMember || s?.k2 === targetMember) return acc + 1;
+                return acc;
+              }, 0);
+
               // Utamakan Adzan jika Adzan < Badal, atau sebaliknya
+              // Tapi jika Subuh & targetMember sudah punya >= 2, skip k1/k2
               const rolesToTry = myAdzan <= myBadal 
                 ? (time === 'SUBUH' ? ['k1', 'k2', 'badal'] : ['adzan', 'badal'])
                 : (time === 'SUBUH' ? ['badal', 'k1', 'k2'] : ['badal', 'adzan']);
 
               for (const role of rolesToTry) {
                 if (LOCKED_CELLS[key] && LOCKED_CELLS[key][role]) continue;
+                // Guard: jangan kasih k1/k2 Subuh ke orang yang sudah >= 2
+                if (time === 'SUBUH' && (role === 'k1' || role === 'k2') && currentSubuhCount >= 2) continue;
                 const owner = slot[role];
-                if (!owner || !FLEXIBLE_POOL.includes(owner)) continue;
+                if (!owner || !flexiblePool.includes(owner)) continue;
 
                 const ownerTotal = counts[owner]?.total || 0;
                 if (ownerTotal > targetTotal) {
@@ -686,12 +1004,13 @@ export default function JadwalApp() {
         localStorage.setItem('jadwal_v14', JSON.stringify(newSched));
         saveToCloud(newSched, unavailability, true);
 
-        if (patchedCount > 0 && balancedCount > 0) {
-          setMessage(`✅ ${patchedCount} bentrok diperbaiki + ${balancedCount} slot berhasil diseimbangkan!`);
-        } else if (patchedCount > 0) {
-          setMessage(`✅ ${patchedCount} jadwal bentrok berhasil ditambal!`);
-        } else if (balancedCount > 0) {
-          setMessage(`⚖️ ${balancedCount} slot berhasil disesuaikan untuk takmir aktif!`);
+        const parts = [];
+        if (patchedCount > 0) parts.push(`${patchedCount} bentrok diperbaiki`);
+        if (subuhCapped > 0) parts.push(`${subuhCapped} adzan subuh dikurangi (maks 2/orang)`);
+        if (balancedCount > 0) parts.push(`${balancedCount} slot diseimbangkan`);
+
+        if (parts.length > 0) {
+          setMessage(`✅ ${parts.join(' · ')}!`);
         } else {
           setMessage('ℹ️ Jadwal sudah optimal & seimbang.');
         }
@@ -759,7 +1078,7 @@ export default function JadwalApp() {
 
   const calculateStats = () => {
     let stats = {};
-    FLEXIBLE_POOL.forEach(name => stats[name] = { imam: 0, adzan: 0, badal: 0, hadits: 0, mc: 0, total: 0 });
+    flexiblePool.forEach(name => stats[name] = { imam: 0, adzan: 0, badal: 0, hadits: 0, mc: 0, total: 0 });
     
     Object.keys(schedule).forEach(key => {
       const cell = schedule[key];
@@ -770,7 +1089,7 @@ export default function JadwalApp() {
               stats[cell].total++;
           }
       } else if (key.startsWith('MC-')) {
-          FLEXIBLE_POOL.forEach(person => {
+          flexiblePool.forEach(person => {
               if (cell && cell.includes(person)) {
                   stats[person].mc++;
                   stats[person].total++;
@@ -810,7 +1129,7 @@ export default function JadwalApp() {
           className="absolute inset-0 appearance-none bg-transparent text-center font-bold text-[11px] md:text-[11.5px] leading-tight outline-none cursor-pointer hover:bg-black/10 flex items-center justify-center m-0 p-0"
           style={{ WebkitAppearance: 'none', MozAppearance: 'none', textOverflow: '', color: conflict ? '#b91c1c' : undefined }}
         >
-          {['AAW/Arga/Nabil', ...ALL_POSSIBLE_NAMES].map(n => <option key={n} value={n} className="text-black bg-white">{n}</option>)}
+          {DROPDOWN_NAMES.map(n => <option key={n} value={n} className="text-black bg-white">{n}</option>)}
         </select>
       </div>
     );
@@ -868,7 +1187,7 @@ export default function JadwalApp() {
             className="appearance-none bg-transparent text-center font-bold text-[11px] md:text-[11.5px] leading-tight outline-none cursor-pointer w-auto px-1 m-0"
             style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
           >
-            {['AAW/Arga/Nabil', ...ALL_POSSIBLE_NAMES].map(n => <option key={n} value={n} className="text-black bg-white">{n}</option>)}
+            {DROPDOWN_NAMES.map(n => <option key={n} value={n} className="text-black bg-white">{n}</option>)}
           </select>
           <select
             value={p1.suffix}
@@ -887,7 +1206,7 @@ export default function JadwalApp() {
             className="appearance-none bg-transparent text-center font-bold text-[11px] md:text-[11.5px] leading-tight outline-none cursor-pointer w-auto px-1 m-0"
             style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
           >
-            {['AAW/Arga/Nabil', ...ALL_POSSIBLE_NAMES].map(n => <option key={n} value={n} className="text-black bg-white">{n}</option>)}
+            {DROPDOWN_NAMES.map(n => <option key={n} value={n} className="text-black bg-white">{n}</option>)}
           </select>
           <select
             value={p2.suffix}
@@ -905,7 +1224,7 @@ export default function JadwalApp() {
   // Fitur 2: Panel distribusi adzan & badal
   const DistributionPanel = () => {
     const dist = computeDistribution(schedule);
-    const people = FLEXIBLE_POOL;
+    const people = flexiblePool;
     const adzanVals = people.map(p => dist[p].adzan);
     const badalVals = people.map(p => dist[p].badal);
     const avgAdzan = adzanVals.reduce((a, b) => a + b, 0) / people.length;
@@ -1203,6 +1522,18 @@ export default function JadwalApp() {
     );
   };
 
+  const getMonthOptions = () => {
+    const options = [];
+    const now = new Date();
+    for (let i = -4; i <= 2; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+      options.push({ key, label });
+    }
+    return options;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 p-2 md:p-6 pb-20" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <style>{`
@@ -1227,15 +1558,19 @@ export default function JadwalApp() {
         {/* TABS NAVIGATION */}
         <div className="flex justify-center flex-wrap gap-2 mb-6">
             <button 
-              className={`px-6 py-3 font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab === 'jadwal' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'}`}
+              className={`px-5 py-3 font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab === 'jadwal' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'}`}
               onClick={() => setActiveTab('jadwal')}
             >📅 Tabel Jadwal</button>
             <button 
-              className={`px-6 py-3 font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab === 'ketersediaan' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'}`}
+              className={`px-5 py-3 font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab === 'ketersediaan' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'}`}
               onClick={() => setActiveTab('ketersediaan')}
             >⚙️ Set Ketersediaan</button>
             <button 
-              className={`px-6 py-3 font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab === 'publik' ? 'bg-teal-600 text-white shadow-lg' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'}`}
+              className={`px-5 py-3 font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab === 'kehadiran' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'}`}
+              onClick={() => setActiveTab('kehadiran')}
+            >📋 Presensi Kehadiran</button>
+            <button 
+              className={`px-5 py-3 font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab === 'publik' ? 'bg-teal-600 text-white shadow-lg' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'}`}
               onClick={() => setActiveTab('publik')}
             >🕌 Info Umum</button>
         </div>
@@ -1244,24 +1579,68 @@ export default function JadwalApp() {
         {activeTab === 'ketersediaan' && (
           <div className="bg-white shadow-lg rounded-xl p-6 border border-gray-200">
             <h2 className="text-2xl font-bold mb-2">Pengaturan Waktu Sibuk</h2>
-            <p className="text-gray-600 mb-6 text-sm">Pilih nama, lalu centang kotak pada waktu dimana orang tersebut TIDAK BISA bertugas. Jika kotak bertuliskan &quot;Sedang Bertugas&quot;, Anda tetap bisa mengkliknya untuk menandai bentrok.</p>
+            <p className="text-gray-600 mb-6 text-sm">Pilih nama, lalu centang kotak pada waktu dimana orang tersebut TIDAK BISA bertugas.</p>
             
             <div className="flex flex-col gap-6">
-              <div className="w-full md:w-1/3">
-                <label className="block text-sm font-bold text-gray-700 mb-2">Pilih Orang:</label>
-                <select 
-                  className="w-full p-3 border-2 border-indigo-200 rounded-lg focus:border-indigo-500 focus:ring-0 outline-none font-bold bg-white"
-                  value={selectedPerson}
-                  onChange={(e) => setSelectedPerson(e.target.value)}
-                >
-                  {FLEXIBLE_POOL.map(name => <option key={name} value={name}>{name}</option>)}
-                </select>
-                <div className="mt-4 flex gap-2">
-                  <button onClick={() => selectAllUnavail(true)} className="flex-1 bg-red-50 text-red-600 border border-red-200 py-2 rounded-lg font-bold text-sm hover:bg-red-100 transition">Tandai Semua Sibuk</button>
-                  <button onClick={() => selectAllUnavail(false)} className="flex-1 bg-green-50 text-green-600 border border-green-200 py-2 rounded-lg font-bold text-sm hover:bg-green-100 transition">Kosongkan Semua</button>
+              <div className="w-full">
+
+                {/* ── Manajemen Anggota ── */}
+                <div className="mb-5 p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
+                  <h3 className="text-sm font-extrabold text-indigo-800 mb-3 uppercase tracking-wide">👥 Daftar Anggota Takmir</h3>
+                  
+                  {/* Daftar anggota yang bisa dihapus */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {flexiblePool.map(name => (
+                      <div
+                        key={name}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold cursor-pointer transition-all border ${selectedPerson === name ? 'bg-indigo-600 text-white border-indigo-700 shadow-md' : 'bg-white text-gray-700 border-gray-300 hover:border-indigo-400 hover:bg-indigo-50'}`}
+                        onClick={() => setSelectedPerson(name)}
+                      >
+                        <span>{name}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleRemoveMember(name); }}
+                          className={`ml-1 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-extrabold transition-all hover:bg-red-500 hover:text-white ${selectedPerson === name ? 'bg-white/30 text-white' : 'bg-gray-200 text-gray-500'}`}
+                          title={`Hapus ${name} dari daftar`}
+                        >✕</button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Input tambah anggota baru */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newMemberInput}
+                      onChange={(e) => setNewMemberInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddMember(); }}
+                      placeholder="Nama anggota baru..."
+                      className="flex-1 px-3 py-2 border-2 border-indigo-200 rounded-lg focus:border-indigo-500 outline-none font-bold text-sm bg-white"
+                    />
+                    <button
+                      onClick={handleAddMember}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-sm transition-all shadow-sm"
+                    >+ Tambah</button>
+                  </div>
+                  {message && <p className="mt-2 text-sm font-bold text-indigo-700">{message}</p>}
+                </div>
+
+                {/* ── Pilih Orang & Quick Action ── */}
+                <div className="md:w-1/3">
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Pilih Orang untuk Set Ketersediaan:</label>
+                  <select
+                    className="w-full p-3 border-2 border-indigo-200 rounded-lg focus:border-indigo-500 focus:ring-0 outline-none font-bold bg-white"
+                    value={selectedPerson}
+                    onChange={(e) => setSelectedPerson(e.target.value)}
+                  >
+                    {flexiblePool.map(name => <option key={name} value={name}>{name}</option>)}
+                  </select>
+                  <div className="mt-4 flex gap-2">
+                    <button onClick={() => selectAllUnavail(true)} className="flex-1 bg-red-50 text-red-600 border border-red-200 py-2 rounded-lg font-bold text-sm hover:bg-red-100 transition">Tandai Semua Sibuk</button>
+                    <button onClick={() => selectAllUnavail(false)} className="flex-1 bg-green-50 text-green-600 border border-green-200 py-2 rounded-lg font-bold text-sm hover:bg-green-100 transition">Kosongkan Semua</button>
+                  </div>
                 </div>
               </div>
-              
+
               <div className="w-full overflow-x-auto custom-scroll pb-4">
                 <div className="min-w-[700px] border border-gray-300 rounded-lg overflow-hidden">
                    <div className="grid grid-cols-8 text-center bg-gray-100">
@@ -1532,8 +1911,8 @@ export default function JadwalApp() {
                         <tbody>
                             {(() => {
                               const dist = computeDistribution(schedule);
-                              const totalVals = FLEXIBLE_POOL.map(p => dist[p].total);
-                              const avgTotal = totalVals.reduce((a,b) => a+b,0) / FLEXIBLE_POOL.length;
+                              const totalVals = flexiblePool.map(p => dist[p].total);
+                              const avgTotal = totalVals.reduce((a,b) => a+b,0) / flexiblePool.length;
                               const colorClass = (val, avg) => {
                                 const diff = Math.abs(val - avg);
                                 if (diff <= 1) return 'bg-emerald-100 text-emerald-800';
@@ -1542,7 +1921,7 @@ export default function JadwalApp() {
                               };
                               return (
                                 <>
-                                  {FLEXIBLE_POOL.map((name, i) => (
+                                  {flexiblePool.map((name, i) => (
                                     <tr key={name} className={`border-b border-gray-100 last:border-0 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50/40`}>
                                       <td className="py-2 px-4 font-bold text-gray-700 text-sm">{name}</td>
                                       <td className="py-2 px-4 text-center font-semibold text-gray-600 text-sm">{stats[name].imam}</td>
@@ -1631,6 +2010,302 @@ export default function JadwalApp() {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* AREA PARAMETER & EVALUASI KEHADIRAN BULANAN */}
+            <div className="mt-12 pt-8 border-t-2 border-gray-100">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <div>
+                        <h3 className="font-bold text-xl flex items-center gap-2 text-gray-800">
+                           <span>📊</span> Parameter & Evaluasi Kehadiran Takmir (Bulanan)
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Evaluasi kesesuaian jadwal vs realita presensi. Ambang batas dihitung proporsional (beban 32 tugas/bln = toleransi maks 5x alpha tanpa izin).
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 w-full md:w-auto">
+                        <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-1.5 shadow-sm">
+                            <span className="text-xs font-bold text-gray-500">Bulan:</span>
+                            <select
+                              value={attendanceMonth}
+                              onChange={(e) => setAttendanceMonth(e.target.value)}
+                              className="text-xs font-bold text-gray-800 bg-transparent outline-none cursor-pointer"
+                            >
+                              {getMonthOptions().map(m => (
+                                <option key={m.key} value={m.key}>{m.label}</option>
+                              ))}
+                            </select>
+                        </div>
+                        <button
+                          onClick={() => setActiveTab('kehadiran')}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <span>📋</span> Isi Presensi Per-Slot
+                        </button>
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto custom-scroll">
+                    <table className="min-w-full bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <thead className="bg-gray-800 text-white text-xs uppercase tracking-wider">
+                            <tr>
+                                <th className="py-3 px-4 text-left font-bold">Nama Takmir</th>
+                                <th className="py-3 px-4 text-center font-bold text-cyan-300" title="Jumlah peran yang diisi per pekan di jadwal">Jadwal / Pekan</th>
+                                <th className="py-3 px-4 text-center font-bold text-blue-300" title="Estimasi 4 pekan dalam sebulan">Estimasi / Bulan</th>
+                                <th className="py-3 px-4 text-center font-bold text-emerald-300">Hadir (✅)</th>
+                                <th className="py-3 px-4 text-center font-bold text-amber-300">Izin (🤒)</th>
+                                <th className="py-3 px-4 text-center font-bold text-indigo-300">Diganti (🔄)</th>
+                                <th className="py-3 px-4 text-center font-bold text-rose-300">Alpha (❌)</th>
+                                <th className="py-3 px-4 text-center font-bold text-gray-300" title="Batas toleransi alpha tanpa izin">Ambang Batas</th>
+                                <th className="py-3 px-4 text-center font-bold">Status Kedisiplinan</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 text-xs">
+                            {(() => {
+                              const statsData = getAttendanceStats(attendanceMonth);
+                              return flexiblePool.map((person, idx) => {
+                                const s = statsData[person] || { weeklyCount: 0, monthlyEstimate: 0, thresholdAlpha: 0, hadir: 0, alpha: 0, izin: 0, digantikan: 0, status: { label: 'Baik', badge: 'bg-emerald-100 text-emerald-800 border-emerald-300', emoji: '🟢' } };
+                                return (
+                                  <tr key={person} className={`hover:bg-indigo-50/40 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}`}>
+                                      <td className="py-2.5 px-4 font-extrabold text-gray-800 text-sm">{person}</td>
+                                      <td className="py-2.5 px-4 text-center font-bold text-cyan-700 bg-cyan-50/50">{s.weeklyCount}</td>
+                                      <td className="py-2.5 px-4 text-center font-bold text-blue-800 bg-blue-50/50">{s.monthlyEstimate}</td>
+                                      <td className="py-2.5 px-4 text-center font-bold text-emerald-700">{s.hadir}</td>
+                                      <td className="py-2.5 px-4 text-center font-bold text-amber-700">{s.izin}</td>
+                                      <td className="py-2.5 px-4 text-center font-bold text-indigo-700">{s.digantikan}</td>
+                                      <td className="py-2.5 px-4 text-center font-extrabold text-rose-700 bg-rose-50/30">
+                                        <span className={s.alpha > s.thresholdAlpha ? 'text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full' : ''}>
+                                          {s.alpha}
+                                        </span>
+                                      </td>
+                                      <td className="py-2.5 px-4 text-center font-bold text-gray-600">
+                                        Maks {s.thresholdAlpha}x
+                                      </td>
+                                      <td className="py-2.5 px-4 text-center">
+                                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black border ${s.status.badge}`}>
+                                          <span>{s.status.emoji}</span>
+                                          <span>{s.status.label.toUpperCase()}</span>
+                                        </span>
+                                      </td>
+                                  </tr>
+                                );
+                              });
+                            })()}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <div className="flex items-center gap-4 flex-wrap">
+                        <span className="font-bold text-gray-700">Keterangan Status:</span>
+                        <span className="flex items-center gap-1">🟢 <b>Baik</b>: Alpha &lt; Ambang Batas</span>
+                        <span className="flex items-center gap-1">🟡 <b>Perhatian</b>: Alpha = Ambang Batas</span>
+                        <span className="flex items-center gap-1">🔴 <b>Kritis</b>: Alpha &gt; Ambang Batas (Perlu Pembinaan)</span>
+                    </div>
+                    <div className="italic text-gray-400">
+                        *Catatan: Izin &amp; Digantikan tidak dihitung sebagai alpha.
+                    </div>
+                </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* TAB 2.5: PRESENSI KEHADIRAN PER-SLOT */}
+        {activeTab === 'kehadiran' && (
+          <div className="bg-white shadow-lg rounded-xl p-4 md:p-6 border border-gray-200">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center pb-5 mb-5 border-b border-gray-200 gap-4">
+              <div>
+                <h2 className="text-2xl font-bold flex items-center gap-2 text-gray-900">
+                  <span>📋</span> Presensi & Ceklis Kehadiran Takmir
+                </h2>
+                <p className="text-gray-600 text-sm mt-1">
+                  Pilih bulan dan minggu, lalu klik pada masing-masing nama untuk mengubah status kehadiran tugas secara live.
+                </p>
+              </div>
+
+              {/* Selector Bulan & Minggu */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2 bg-gray-50 border border-gray-300 rounded-lg px-3 py-2">
+                  <span className="text-xs font-bold text-gray-500">Bulan:</span>
+                  <select
+                    value={attendanceMonth}
+                    onChange={(e) => setAttendanceMonth(e.target.value)}
+                    className="text-sm font-bold text-gray-800 bg-transparent outline-none cursor-pointer"
+                  >
+                    {getMonthOptions().map(m => (
+                      <option key={m.key} value={m.key}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg border border-gray-300">
+                  {['W1', 'W2', 'W3', 'W4', 'W5'].map((w, idx) => (
+                    <button
+                      key={w}
+                      onClick={() => setAttendanceWeek(w)}
+                      className={`px-3 py-1.5 rounded-md font-bold text-xs transition-all cursor-pointer ${attendanceWeek === w ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}
+                    >
+                      Minggu {idx + 1}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions & Legend Bar */}
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 p-4 bg-indigo-50/70 border border-indigo-100 rounded-xl">
+              <div className="flex flex-wrap items-center gap-3 text-xs font-bold">
+                <span className="text-indigo-950 uppercase tracking-wide">Klik tombol untuk berganti:</span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500 text-white rounded-md shadow-xs">✅ Hadir</span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-600 text-white rounded-md shadow-xs">❌ Alpha</span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-400 text-amber-950 rounded-md shadow-xs">🤒 Izin/Sakit</span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-500 text-white rounded-md shadow-xs">🔄 Digantikan</span>
+                <span className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-gray-300 text-gray-500 rounded-md">○ Belum Dicatat</span>
+              </div>
+
+              <div className="flex items-center gap-2 w-full lg:w-auto">
+                <button
+                  onClick={() => markAllAttendanceForWeek(attendanceMonth, attendanceWeek, 'hadir')}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+                  title="Tandai semua slot yang diisi flexible pool menjadi Hadir"
+                >
+                  <span>⚡</span> Tandai Semua Hadir ({attendanceWeek})
+                </button>
+                <button
+                  onClick={() => clearAttendanceForWeek(attendanceMonth, attendanceWeek)}
+                  className="px-3 py-2 bg-white hover:bg-red-50 text-red-600 border border-red-200 font-bold rounded-lg text-xs transition-all cursor-pointer"
+                  title="Kosongkan presensi minggu ini"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            {/* Grid Presensi Per-Slot (7 Hari x 5 Waktu) */}
+            <div className="w-full overflow-x-auto custom-scroll pb-6">
+              <div className="min-w-[950px] border-2 border-gray-800 bg-gray-900 p-[2px] rounded-lg shadow-md">
+                <div className="grid grid-cols-[80px_repeat(7,1fr)] gap-[2px]">
+                  <div className="bg-[#cbd5e1] font-extrabold flex items-center justify-center p-2 text-xs text-gray-800">WAKTU</div>
+                  {DAYS.map(day => (
+                    <div key={day} className="bg-[#94a3b8] font-extrabold flex items-center justify-center p-2 uppercase text-xs text-gray-900 tracking-wider">
+                      {day}
+                    </div>
+                  ))}
+
+                  {TIMES.map(time => (
+                    <React.Fragment key={time}>
+                      <div className="bg-[#c7d2fe] font-extrabold flex items-center justify-center p-2 text-xs text-indigo-950">
+                        {time}
+                      </div>
+
+                      {DAYS.map(day => {
+                        const key = `${day}-${time}`;
+                        const cellData = schedule[key] || {};
+                        const renderSlotButton = (role, label, name) => {
+                          if (!name || name === '-') {
+                            return <div key={`${key}-${role}`} className="p-1 text-center text-[10px] text-gray-400 font-bold">—</div>;
+                          }
+                          const isFlex = flexiblePool.includes(name);
+                          const slotKey = `${key}-${role}`;
+                          const record = attendance?.[attendanceMonth]?.[attendanceWeek]?.[slotKey];
+                          const status = record?.status || '';
+
+                          let badgeColor = 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100';
+                          let icon = '○';
+                          if (status === 'hadir') { badgeColor = 'bg-emerald-600 text-white border-emerald-700 shadow-sm'; icon = '✅'; }
+                          else if (status === 'alpha') { badgeColor = 'bg-rose-600 text-white border-rose-700 font-black shadow-sm'; icon = '❌'; }
+                          else if (status === 'izin') { badgeColor = 'bg-amber-400 text-amber-950 border-amber-500 font-black shadow-sm'; icon = '🤒'; }
+                          else if (status === 'digantikan') { badgeColor = 'bg-indigo-600 text-white border-indigo-700 shadow-sm'; icon = '🔄'; }
+
+                          return (
+                            <button
+                              key={slotKey}
+                              onClick={() => cycleAttendanceStatus(attendanceMonth, attendanceWeek, slotKey, name)}
+                              disabled={!isFlex}
+                              className={`w-full text-left p-1.5 rounded transition-all border text-[11px] flex items-center justify-between gap-1 ${badgeColor} ${!isFlex ? 'opacity-70 cursor-not-allowed bg-gray-100 text-gray-500' : 'cursor-pointer hover:scale-[1.02]'}`}
+                              title={isFlex ? `Klik untuk ganti status kehadiran ${name} (${label})` : `${name} (Imam/Petugas Tetap)`}
+                            >
+                              <div className="truncate flex flex-col leading-tight">
+                                <span className="text-[9px] uppercase font-extrabold opacity-75">{label}</span>
+                                <span className="font-extrabold truncate">{name}</span>
+                              </div>
+                              <span className="text-xs shrink-0 font-bold">{icon}</span>
+                            </button>
+                          );
+                        };
+
+                        if (time === 'SUBUH') {
+                          return (
+                            <div key={key} className="bg-gray-100 p-1.5 flex flex-col gap-1 border border-gray-300 min-h-[90px]">
+                              {renderSlotButton('k1', 'K1', cellData.k1)}
+                              {renderSlotButton('imam', 'Imam', cellData.imam)}
+                              {renderSlotButton('k2', 'K2', cellData.k2)}
+                              {renderSlotButton('badal', 'Badal', cellData.badal)}
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div key={key} className="bg-gray-100 p-1.5 flex flex-col gap-1 border border-gray-300 min-h-[90px]">
+                              {renderSlotButton('adzan', 'Adzan', cellData.adzan)}
+                              {renderSlotButton('imam', 'Imam', cellData.imam)}
+                              {renderSlotButton('badal', 'Badal', cellData.badal)}
+                            </div>
+                          );
+                        }
+                      })}
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Summary Table for Attendance Tab */}
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <h3 className="font-bold text-lg text-gray-800 mb-3 flex items-center gap-2">
+                <span>📈</span> Ringkasan Presensi Akumulasi Bulan Ini ({attendanceMonth})
+              </h3>
+              <div className="overflow-x-auto custom-scroll">
+                <table className="min-w-full bg-white border border-gray-200 rounded-lg text-xs">
+                  <thead className="bg-gray-100 text-gray-700 uppercase font-bold">
+                    <tr>
+                      <th className="py-2.5 px-4 text-left">Nama</th>
+                      <th className="py-2.5 px-4 text-center">Beban / Bln</th>
+                      <th className="py-2.5 px-4 text-center text-emerald-700">Hadir</th>
+                      <th className="py-2.5 px-4 text-center text-amber-700">Izin</th>
+                      <th className="py-2.5 px-4 text-center text-indigo-700">Diganti</th>
+                      <th className="py-2.5 px-4 text-center text-rose-700">Alpha</th>
+                      <th className="py-2.5 px-4 text-center">Toleransi</th>
+                      <th className="py-2.5 px-4 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {(() => {
+                      const statsData = getAttendanceStats(attendanceMonth);
+                      return flexiblePool.map(person => {
+                        const s = statsData[person] || {};
+                        return (
+                          <tr key={person} className="hover:bg-gray-50">
+                            <td className="py-2 px-4 font-bold text-gray-800">{person}</td>
+                            <td className="py-2 px-4 text-center font-bold text-gray-600">{s.monthlyEstimate || 0}</td>
+                            <td className="py-2 px-4 text-center font-bold text-emerald-700">{s.hadir || 0}</td>
+                            <td className="py-2 px-4 text-center font-bold text-amber-700">{s.izin || 0}</td>
+                            <td className="py-2 px-4 text-center font-bold text-indigo-700">{s.digantikan || 0}</td>
+                            <td className="py-2 px-4 text-center font-extrabold text-rose-700">{s.alpha || 0}</td>
+                            <td className="py-2 px-4 text-center font-bold text-gray-500">Maks {s.thresholdAlpha || 0}x</td>
+                            <td className="py-2 px-4 text-center">
+                              <span className={`px-2.5 py-0.5 rounded-full font-extrabold text-[11px] border ${s.status?.badge}`}>
+                                {s.status?.emoji} {s.status?.label}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
           </div>
