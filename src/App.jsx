@@ -188,6 +188,7 @@ export default function JadwalApp() {
   const fileInputRef = useRef(null);
   const cloudSaveTimerRef = useRef(null);
   const lastUnavailLocalWriteRef = useRef(0);
+  const lastScheduleLocalWriteRef = useRef(0);
 
   const pushHistory = (currentSched) => {
     setHistory(prev => [...prev.slice(-30), currentSched]);
@@ -198,6 +199,7 @@ export default function JadwalApp() {
     if (history.length === 0) return;
     const previous = history[history.length - 1];
     const newHistory = history.slice(0, history.length - 1);
+    lastScheduleLocalWriteRef.current = Date.now();
     setRedoStack(prev => [schedule, ...prev]);
     setHistory(newHistory);
     setSchedule(previous);
@@ -211,6 +213,7 @@ export default function JadwalApp() {
     if (redoStack.length === 0) return;
     const next = redoStack[0];
     const newRedo = redoStack.slice(1);
+    lastScheduleLocalWriteRef.current = Date.now();
     setHistory(prev => [...prev, schedule]);
     setRedoStack(newRedo);
     setSchedule(next);
@@ -303,23 +306,30 @@ export default function JadwalApp() {
     const applyFromCloud = (data) => {
       if (!data?.schedule) return;
 
-      // Extract __members dari schedule jika ada (untuk sync daftar anggota lintas device)
+      const timeSinceSchedWrite = Date.now() - lastScheduleLocalWriteRef.current;
       const rawSchedule = { ...data.schedule };
+
+      // Extract __members dari schedule jika ada (untuk sync daftar anggota lintas device)
+      // Jangan timpa jika user baru saja menambah/menghapus anggota secara lokal (dalam 20 detik)
       if (rawSchedule.__members && Array.isArray(rawSchedule.__members)) {
-        const cloudPool = rawSchedule.__members;
-        setFlexiblePool(cloudPool);
-        localStorage.setItem('flex_pool_v1', JSON.stringify(cloudPool));
+        if (timeSinceSchedWrite > 20000) {
+          const cloudPool = rawSchedule.__members;
+          setFlexiblePool(cloudPool);
+          localStorage.setItem('flex_pool_v1', JSON.stringify(cloudPool));
+        }
         delete rawSchedule.__members;
       }
 
-      // Pakai data cloud murni + apply locks, TANPA spread IMAGE_SCHEDULE_STATE
-      const merged = applyLocks(rawSchedule);
-      setSchedule(merged);
-      localStorage.setItem('jadwal_v14', JSON.stringify(merged));
+      // PENTING: Jangan overwrite schedule jika user baru saja mengubahnya secara lokal (dalam 20 detik terakhir)
+      if (timeSinceSchedWrite > 20000) {
+        const merged = applyLocks(rawSchedule);
+        setSchedule(merged);
+        localStorage.setItem('jadwal_v14', JSON.stringify(merged));
+      }
 
-      // PENTING: Jangan overwrite unavailability jika user baru saja mengubahnya secara lokal
-      const timeSinceLocalWrite = Date.now() - lastUnavailLocalWriteRef.current;
-      if (data.unavailability && Object.keys(data.unavailability).length > 0 && timeSinceLocalWrite > 15000) {
+      // PENTING: Jangan overwrite unavailability jika user baru saja mengubahnya secara lokal (dalam 20 detik terakhir)
+      const timeSinceUnavailWrite = Date.now() - lastUnavailLocalWriteRef.current;
+      if (data.unavailability && Object.keys(data.unavailability).length > 0 && timeSinceUnavailWrite > 20000) {
         setUnavailability(data.unavailability);
         localStorage.setItem('unavail_v11', JSON.stringify(data.unavailability));
       }
@@ -334,23 +344,31 @@ export default function JadwalApp() {
     const syncWithCloud = async () => {
       if (!supabase) return;
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('jadwal_takmir')
           .select('*')
           .eq('id', 'default')
           .maybeSingle();
 
+        // JIKA ADA ERROR (misal: koneksi offline, Supabase project paused/unreachable):
+        if (error) {
+          console.warn('Supabase sync warning (project might be paused or offline):', error.message);
+          setCloudStatus('offline');
+          return; // STOP! JANGAN SENTUH SCHEDULE DAN JANGAN OVERWRITE DATA LOKAL!
+        }
+
         if (data?.schedule) {
           // Cloud punya data → pakai data cloud
           setCloudStatus('connected');
           applyFromCloud(data);
-        } else {
-          // Cloud KOSONG → push jadwal saat ini ke cloud agar /publik bisa baca
+        } else if (!data) {
+          // Cloud BENAR-BENAR KOSONG (bukan error) → baru push jadwal awal
           setCloudStatus('connected');
-          const localSched = localRaw ? JSON.parse(localRaw) : IMAGE_SCHEDULE_STATE;
+          const localRawNow = localStorage.getItem('jadwal_v14');
+          const localSched = localRawNow ? JSON.parse(localRawNow) : IMAGE_SCHEDULE_STATE;
           const toSave = applyLocks({ ...IMAGE_SCHEDULE_STATE, ...localSched });
-          const toSaveUnavail = localUnavail ? JSON.parse(localUnavail) : {};
-          const toSaveAttend = localAttend ? JSON.parse(localAttend) : {};
+          const toSaveUnavail = localStorage.getItem('unavail_v11') ? JSON.parse(localStorage.getItem('unavail_v11')) : {};
+          const toSaveAttend = localStorage.getItem('attendance_v1') ? JSON.parse(localStorage.getItem('attendance_v1')) : {};
           await supabase.from('jadwal_takmir').upsert({
             id: 'default',
             schedule: toSave,
@@ -362,7 +380,7 @@ export default function JadwalApp() {
           localStorage.setItem('jadwal_v14', JSON.stringify(toSave));
         }
       } catch (e) {
-        console.error('Supabase sync error:', e);
+        console.error('Supabase sync network error:', e);
         setCloudStatus('offline');
       }
     };
@@ -428,6 +446,7 @@ export default function JadwalApp() {
     if (!name) { setMessage('Nama tidak boleh kosong!'); setTimeout(() => setMessage(''), 2000); return; }
     if (flexiblePool.includes(name)) { setMessage(`"${name}" sudah ada dalam daftar!`); setTimeout(() => setMessage(''), 2500); return; }
     const newPool = [...flexiblePool, name];
+    lastScheduleLocalWriteRef.current = Date.now();
     setFlexiblePool(newPool);
     setNewMemberInput('');
     setSelectedPerson(name);
@@ -441,6 +460,7 @@ export default function JadwalApp() {
   const handleRemoveMember = (name) => {
     if (flexiblePool.length <= 1) { setMessage('Minimal harus ada 1 anggota!'); setTimeout(() => setMessage(''), 2500); return; }
     const newPool = flexiblePool.filter(p => p !== name);
+    lastScheduleLocalWriteRef.current = Date.now();
     setFlexiblePool(newPool);
     if (selectedPerson === name) setSelectedPerson(newPool[0]);
     localStorage.setItem('flex_pool_v1', JSON.stringify(newPool));
@@ -620,6 +640,7 @@ export default function JadwalApp() {
 
   const updateCell = (cellKey, field, value) => {
     pushHistory(schedule);
+    lastScheduleLocalWriteRef.current = Date.now();
     const newSched = { ...schedule };
     if (field === null || typeof newSched[cellKey] === 'string' || newSched[cellKey] === undefined) {
         newSched[cellKey] = value;
@@ -735,6 +756,7 @@ export default function JadwalApp() {
   const handleGenerate = () => {
     setIsGenerating(true);
     pushHistory(schedule);
+    lastScheduleLocalWriteRef.current = Date.now();
     setTimeout(() => {
       let newSched = { ...schedule };
       let taskCounts = {};
@@ -814,6 +836,8 @@ export default function JadwalApp() {
         }
       });
 
+      newSched = applyLocks(newSched);
+      lastScheduleLocalWriteRef.current = Date.now();
       setSchedule(newSched);
       localStorage.setItem('jadwal_v14', JSON.stringify(newSched));
       saveToCloud(newSched, unavailability, true);
@@ -826,6 +850,7 @@ export default function JadwalApp() {
   const handlePatch = () => {
     setIsGenerating(true);
     pushHistory(schedule);
+    lastScheduleLocalWriteRef.current = Date.now();
     setTimeout(() => {
       try {
         let newSched = { ...schedule };
@@ -1028,6 +1053,7 @@ export default function JadwalApp() {
 
         // ── 3. Apply locks & Save ──
         newSched = applyLocks(newSched);
+        lastScheduleLocalWriteRef.current = Date.now();
         setSchedule(newSched);
         localStorage.setItem('jadwal_v14', JSON.stringify(newSched));
         saveToCloud(newSched, unavailability, true);
@@ -1577,9 +1603,24 @@ export default function JadwalApp() {
       <div className="max-w-7xl mx-auto">
         
         {/* HEADER */}
-        <div className="text-center mb-8 mt-4">
+        <div className="text-center mb-6 mt-4">
             <h1 className="text-5xl md:text-6xl font-inter-bold-italic text-gray-900 tracking-tight">New Regiem</h1>
             <p className="text-xl md:text-2xl font-bold text-gray-500 mt-2">Schedule Generator v01</p>
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all ${
+                cloudStatus === 'connected' 
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
+                  : 'bg-amber-50 text-amber-800 border-amber-300'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${cloudStatus === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
+                {cloudStatus === 'connected' ? 'Cloud Terhubung (Auto-Sync)' : 'Mode Lokal (Cloud Offline / Proyek Paused)'}
+              </span>
+              {cloudStatus === 'offline' && (
+                <span className="text-[11px] text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full border border-gray-200" title="Data perubahan Anda tetap tersimpan aman di browser ini">
+                  💾 Data tersimpan di browser
+                </span>
+              )}
+            </div>
         </div>
 
 
