@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { toPng } from 'html-to-image';
 import { getSupabase } from './supabaseClient';
+import PiketMPR from './components/PiketMPR/PiketMPR';
 
 const DAYS = ['SENIN', 'SELASA', 'RABU', 'KAMIS', "JUM'AT", 'SABTU', 'AHAD'];
 const TIMES = ['SUBUH', 'DZUHUR', 'ASHAR', 'MAGHRIB', 'ISYA'];
@@ -183,6 +184,22 @@ export default function JadwalApp() {
   // Modal untuk memilih status presensi & nama pengganti
   const [attendanceModal, setAttendanceModal] = useState(null);
 
+  // ── Piket MPR State ──
+  const [piketCloudData, setPiketCloudData] = useState(() => {
+    try {
+      const cfg = localStorage.getItem('piket_config_v1');
+      const wks = localStorage.getItem('piket_weeks_v1');
+      const kb = localStorage.getItem('piket_kerjabakti_v1');
+      return {
+        piket_config: cfg ? JSON.parse(cfg) : null,
+        piket_weeks: wks ? JSON.parse(wks) : null,
+        piket_kerjabakti: kb ? JSON.parse(kb) : null,
+      };
+    } catch (e) {
+      return {};
+    }
+  });
+
   const scheduleRef = useRef(null);
   const imamScheduleRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -243,7 +260,7 @@ export default function JadwalApp() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [history, redoStack, schedule, unavailability]);
 
-  const saveToCloud = (newSchedule, newUnavail, instant = false, newPool = null, newAttendance = null) => {
+  const saveToCloud = (newSchedule, newUnavail, instant = false, newPool = null, newAttendance = null, newPiket = null) => {
     const supabase = getSupabase();
     if (!supabase) return;
     
@@ -251,9 +268,11 @@ export default function JadwalApp() {
       try {
         const currentPool = newPool || flexiblePool;
         const currentAttendance = newAttendance !== null ? newAttendance : attendance;
+        const currentPiket = newPiket !== null ? newPiket : piketCloudData;
         const scheduleWithMeta = {
           ...(newSchedule || schedule),
           __members: currentPool, // Simpan daftar anggota di dalam schedule JSONB
+          __piket: currentPiket,   // Simpan data piket di dalam schedule JSONB
         };
         const payload = {
           id: 'default',
@@ -274,6 +293,12 @@ export default function JadwalApp() {
       if (cloudSaveTimerRef.current) clearTimeout(cloudSaveTimerRef.current);
       cloudSaveTimerRef.current = setTimeout(doSave, 1500);
     }
+  };
+
+  const handleSavePiketCloud = (piketChanges) => {
+    const merged = { ...piketCloudData, ...piketChanges };
+    setPiketCloudData(merged);
+    saveToCloud(schedule, unavailability, false, null, null, merged);
   };
 
   useEffect(() => {
@@ -338,6 +363,15 @@ export default function JadwalApp() {
       if (data.attendance && typeof data.attendance === 'object') {
         setAttendance(data.attendance);
         localStorage.setItem('attendance_v1', JSON.stringify(data.attendance));
+      }
+
+      // Sync data piket MPR dari cloud
+      if (rawSchedule.__piket && typeof rawSchedule.__piket === 'object') {
+        setPiketCloudData(rawSchedule.__piket);
+        if (rawSchedule.__piket.piket_config) localStorage.setItem('piket_config_v1', JSON.stringify(rawSchedule.__piket.piket_config));
+        if (rawSchedule.__piket.piket_weeks) localStorage.setItem('piket_weeks_v1', JSON.stringify(rawSchedule.__piket.piket_weeks));
+        if (rawSchedule.__piket.piket_kerjabakti) localStorage.setItem('piket_kerjabakti_v1', JSON.stringify(rawSchedule.__piket.piket_kerjabakti));
+        delete rawSchedule.__piket;
       }
     };
 
@@ -1639,6 +1673,10 @@ export default function JadwalApp() {
               onClick={() => setActiveTab('kehadiran')}
             >📋 Presensi Kehadiran</button>
             <button 
+              className={`px-5 py-3 font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab === 'piket' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'}`}
+              onClick={() => setActiveTab('piket')}
+            >🧹 Piket Jumat MPR</button>
+            <button 
               className={`px-5 py-3 font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab === 'publik' ? 'bg-teal-600 text-white shadow-lg' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'}`}
               onClick={() => setActiveTab('publik')}
             >🕌 Info Umum</button>
@@ -2383,6 +2421,17 @@ export default function JadwalApp() {
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* TAB 4: SISTEM PIKET JUMAT MPR */}
+        {activeTab === 'piket' && (
+          <div className="py-2">
+            <PiketMPR
+              cloudData={piketCloudData}
+              onSavePiketCloud={handleSavePiketCloud}
+              setMessage={setMessage}
+            />
           </div>
         )}
 
