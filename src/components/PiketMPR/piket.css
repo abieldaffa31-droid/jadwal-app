@@ -1,0 +1,1005 @@
+/* Sistem Piket MPR CSS */
+@import url('https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@600;700;800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #ECEDE8;
+  --surface: #F7F7F3;
+  --ink: #17201C;
+  --mut: #5C6560;
+  --faint: #A1A8A3;
+  --line: #D5D8D1;
+  --c-b: #17201C;
+  --c-m: #7A857F;
+  --c-r: #C8CDC6;
+  --on-b: #F7F7F3;
+  --accent: #1E6A51;
+  --accent-soft: #D6E6DE;
+  --warn: #9C5419;
+  --warn-soft: #F1E1D2;
+  --ok: #2C6A3F;
+  --ok-soft: #DCEBDD;
+  --f-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-data: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111513;
+    --surface: #191E1B;
+    --ink: #E5E9E5;
+    --mut: #9AA39E;
+    --faint: #5C6560;
+    --line: #2A312D;
+    --c-b: #E5E9E5;
+    --c-m: #86908B;
+    --c-r: #38403B;
+    --on-b: #111513;
+    --accent: #62B794;
+    --accent-soft: #1D3229;
+    --warn: #E19A57;
+    --warn-soft: #352419;
+    --ok: #7CC48F;
+    --ok-soft: #1C2E22;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #111513;
+  --surface: #191E1B;
+  --ink: #E5E9E5;
+  --mut: #9AA39E;
+  --faint: #5C6560;
+  --line: #2A312D;
+  --c-b: #E5E9E5;
+  --c-m: #86908B;
+  --c-r: #38403B;
+  --on-b: #111513;
+  --accent: #62B794;
+  --accent-soft: #1D3229;
+  --warn: #E19A57;
+  --warn-soft: #352419;
+  --ok: #7CC48F;
+  --ok-soft: #1C2E22;
+  color-scheme: dark;
+}
+
+.piket-app-scope {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0;
+  box-sizing: border-box;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 20px -2px rgba(0,0,0,0.06);
+}
+
+.piket-app-scope * {
+  box-sizing: border-box;
+}
+
+.piket-app-scope .page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding-inline: 20px;
+  padding-block: 0 64px;
+}
+
+@media (max-width: 480px) {
+  .piket-app-scope .page {
+    padding-inline: 16px;
+  }
+}
+
+.piket-app-scope h1,
+.piket-app-scope h2,
+.piket-app-scope h3 {
+  font-family: var(--f-display);
+  margin: 0;
+  text-wrap: balance;
+}
+
+.piket-app-scope .num {
+  font-family: var(--f-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.piket-app-scope .eyebrow {
+  font-size: 11px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--mut);
+  font-weight: 600;
+}
+
+.piket-app-scope .mut {
+  color: var(--mut);
+}
+
+.piket-app-scope button,
+.piket-app-scope select,
+.piket-app-scope input,
+.piket-app-scope textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.piket-app-scope :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.piket-app-scope header.top {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  margin-inline: -20px;
+  padding: 16px 20px 0;
+}
+
+@media (max-width: 480px) {
+  .piket-app-scope header.top {
+    margin-inline: -16px;
+    padding-inline: 16px;
+  }
+}
+
+.piket-app-scope .brandrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.piket-app-scope .brand {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: -.01em;
+}
+
+.piket-app-scope .brand span {
+  color: var(--accent);
+}
+
+.piket-app-scope .sync {
+  font-size: 12px;
+  color: var(--mut);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.piket-app-scope .sync i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+  display: inline-block;
+}
+
+.piket-app-scope .sync.on i {
+  background: var(--ok);
+}
+
+.piket-app-scope .sync.err i {
+  background: var(--warn);
+}
+
+.piket-app-scope .tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-top: 10px;
+}
+
+.piket-app-scope .tab {
+  background: none;
+  border: 0;
+  padding: 9px 12px 11px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--mut);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+
+.piket-app-scope .tab:hover {
+  color: var(--ink);
+}
+
+.piket-app-scope .tab[aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.piket-app-scope .banner {
+  margin-top: 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 14px;
+}
+
+.piket-app-scope main {
+  padding-top: 24px;
+}
+
+.piket-app-scope .sh {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: end;
+  gap: 12px 20px;
+  margin-bottom: 16px;
+}
+
+.piket-app-scope .sh h2 {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+
+.piket-app-scope .sh p {
+  margin: 4px 0 0;
+  color: var(--mut);
+  font-size: 14px;
+  max-width: 62ch;
+}
+
+.piket-app-scope .panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.piket-app-scope .btn {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 7px 13px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.piket-app-scope .btn:hover {
+  border-color: var(--faint);
+}
+
+.piket-app-scope .btn.pri {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+
+.piket-app-scope .btn.acc {
+  background: var(--accent);
+  color: var(--surface);
+  border-color: var(--accent);
+}
+
+.piket-app-scope .btn.ghost {
+  background: none;
+  border-color: transparent;
+  color: var(--mut);
+  padding-inline: 8px;
+}
+
+.piket-app-scope .btn.ghost:hover {
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.piket-app-scope .btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.piket-app-scope .btn.sm {
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
+.piket-app-scope select,
+.piket-app-scope input[type=date],
+.piket-app-scope input[type=text],
+.piket-app-scope textarea {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 14px;
+  min-width: 0;
+}
+
+.piket-app-scope textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.piket-app-scope .weeknav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.piket-app-scope .weeknav .d {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 18px;
+  min-width: 170px;
+  text-align: center;
+}
+
+.piket-app-scope .tag {
+  font-size: 10px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--line);
+  color: var(--mut);
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.piket-app-scope .tag.b {
+  background: var(--c-b);
+  color: var(--on-b);
+}
+
+.piket-app-scope .tag.m {
+  background: var(--c-m);
+  color: var(--on-b);
+}
+
+.piket-app-scope .tag.r {
+  background: var(--c-r);
+  color: var(--ink);
+}
+
+.piket-app-scope .tag.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.piket-app-scope .tag.c {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.piket-app-scope .tag.ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.piket-app-scope .tag.acc {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* week roster */
+.piket-app-scope .summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin-bottom: 16px;
+  border-top: 2px solid var(--ink);
+}
+
+@media (max-width: 640px) {
+  .piket-app-scope .summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.piket-app-scope .sm-i {
+  padding: 12px 14px 4px 0;
+}
+
+.piket-app-scope .sm-i + .sm-i {
+  padding-left: 14px;
+  border-left: 1px solid var(--line);
+}
+
+@media (max-width: 640px) {
+  .piket-app-scope .sm-i:nth-child(3) {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .piket-app-scope .sm-i:nth-child(n+3) {
+    border-top: 1px solid var(--line);
+  }
+}
+
+.piket-app-scope .sm-i .v {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 24px;
+  letter-spacing: -.02em;
+}
+
+.piket-app-scope .sm-i .l {
+  font-size: 12px;
+  color: var(--mut);
+}
+
+.piket-app-scope .roster {
+  display: grid;
+}
+
+.piket-app-scope .row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  gap: 10px 16px;
+  align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.piket-app-scope .row:first-child {
+  border-top: 0;
+}
+
+@media (max-width: 640px) {
+  .piket-app-scope .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .piket-app-scope .row .who {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+}
+
+.piket-app-scope .row .slot b {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.piket-app-scope .row .slot span {
+  font-size: 12px;
+  color: var(--mut);
+}
+
+.piket-app-scope .row .who {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.piket-app-scope .row .who .was {
+  font-weight: 400;
+  color: var(--faint);
+  text-decoration: line-through;
+  font-size: 13px;
+}
+
+.piket-app-scope .row .who .empty {
+  color: var(--warn);
+  font-weight: 500;
+}
+
+.piket-app-scope .row .acts {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: end;
+  flex-wrap: wrap;
+}
+
+.piket-app-scope .st {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--mut);
+  min-width: 78px;
+}
+
+.piket-app-scope .st.selesai {
+  background: var(--ok-soft);
+  color: var(--ok);
+  border-color: transparent;
+}
+
+.piket-app-scope .st.ulang {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-color: transparent;
+}
+
+.piket-app-scope .row.libur,
+.piket-app-scope .row.cad {
+  background: var(--accent-soft);
+}
+
+.piket-app-scope .row.libur .slot b,
+.piket-app-scope .row.cad .slot b {
+  color: var(--accent);
+}
+
+.piket-app-scope .sheet {
+  grid-column: 1 / -1;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.piket-app-scope .sheet h4 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-size: 15px;
+}
+
+.piket-app-scope .opts {
+  display: grid;
+  gap: 6px;
+}
+
+.piket-app-scope .opt {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  cursor: pointer;
+  background: var(--surface);
+}
+
+.piket-app-scope .opt input {
+  margin-top: 3px;
+}
+
+.piket-app-scope .opt small {
+  display: block;
+  color: var(--mut);
+  font-size: 12px;
+}
+
+.piket-app-scope .opt.dis {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.piket-app-scope .rowflex {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.piket-app-scope .wa {
+  white-space: pre-wrap;
+  font-family: var(--f-data);
+  font-size: 12.5px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  max-height: 420px;
+  overflow: auto;
+  margin: 0;
+}
+
+.piket-app-scope .notice {
+  font-size: 13px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.piket-app-scope .notice.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+/* grid */
+.piket-app-scope .gwrap {
+  overflow-x: auto;
+}
+
+.piket-app-scope table.g {
+  border-collapse: separate;
+  border-spacing: 3px;
+  min-width: 720px;
+  width: 100%;
+}
+
+.piket-app-scope table.g th {
+  font-size: 11px;
+  color: var(--mut);
+  font-weight: 600;
+  text-align: center;
+  padding: 4px 2px;
+  white-space: nowrap;
+}
+
+.piket-app-scope table.g th.n {
+  text-align: right;
+  padding-right: 10px;
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.piket-app-scope table.g td {
+  height: 30px;
+  border-radius: 4px;
+  text-align: center;
+  font-family: var(--f-data);
+  font-size: 10.5px;
+  padding: 0 2px;
+  white-space: nowrap;
+}
+
+.piket-app-scope td.b {
+  background: var(--c-b);
+  color: var(--on-b);
+}
+
+.piket-app-scope td.m {
+  background: var(--c-m);
+  color: var(--on-b);
+}
+
+.piket-app-scope td.r {
+  background: var(--c-r);
+}
+
+.piket-app-scope td.c {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.piket-app-scope td.now {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.piket-app-scope td.abs {
+  box-shadow: inset 0 0 0 2px var(--warn);
+}
+
+.piket-app-scope th.now {
+  color: var(--accent) !important;
+}
+
+.piket-app-scope .legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--mut);
+  margin-top: 10px;
+}
+
+.piket-app-scope .sw {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+
+/* cards list */
+.piket-app-scope .cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+}
+
+.piket-app-scope .card {
+  padding: 14px 16px;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.piket-app-scope .card .nm {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.piket-app-scope .card .big {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.piket-app-scope .dots {
+  display: flex;
+  gap: 4px;
+}
+
+.piket-app-scope .dots i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+}
+
+.piket-app-scope .dots i.f {
+  background: var(--accent);
+}
+
+.piket-app-scope .ledger {
+  display: grid;
+  font-size: 13px;
+}
+
+.piket-app-scope .ledger div {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) 46px;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+
+.piket-app-scope .ledger .p {
+  color: var(--ok);
+  text-align: right;
+  font-family: var(--f-data);
+}
+
+.piket-app-scope .ledger .n {
+  color: var(--warn);
+  text-align: right;
+  font-family: var(--f-data);
+}
+
+/* kerja bakti */
+.piket-app-scope .pk {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.piket-app-scope .pkc {
+  padding: 14px 16px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.piket-app-scope .pkc.done {
+  border-color: var(--ok);
+}
+
+.piket-app-scope .pkc h3 {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.piket-app-scope .pkc ul {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 13px;
+  color: var(--mut);
+}
+
+/* kipas */
+.piket-app-scope .units {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.piket-app-scope .unit {
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.piket-app-scope .unit.old {
+  border-color: var(--warn);
+}
+
+.piket-app-scope .unit.rusak {
+  background: var(--warn-soft);
+}
+
+.piket-app-scope .unit b {
+  font-family: var(--f-data);
+  font-size: 14px;
+}
+
+.piket-app-scope .unit span {
+  font-size: 12px;
+  color: var(--mut);
+}
+
+.piket-app-scope .fl-h {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 18px 0 8px;
+}
+
+.piket-app-scope .fl-h h3 {
+  font-size: 16px;
+}
+
+.piket-app-scope .empty-state {
+  padding: 28px;
+  text-align: center;
+  color: var(--mut);
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.piket-app-scope .memrow {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 120px auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+
+.piket-app-scope .memrow:first-child {
+  border-top: 0;
+}
+
+.piket-app-scope .toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--bg);
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.piket-app-scope .area {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.piket-app-scope .area:first-child {
+  border-top: 0;
+}
+
+.piket-app-scope .area .ck {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1.5px solid var(--faint);
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  cursor: pointer;
+  padding: 0;
+  font-size: 13px;
+  color: var(--surface);
+}
+
+.piket-app-scope .area .ck.on {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+.piket-app-scope .area .ck:disabled {
+  cursor: default;
+}
+
+.piket-app-scope .area.off {
+  opacity: .6;
+}
+
+.piket-app-scope .area b {
+  display: block;
+  font-size: 15px;
+}
+
+.piket-app-scope .area span.s {
+  font-size: 12px;
+  color: var(--mut);
+}
+
+.piket-app-scope .jtab {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  min-width: 560px;
+}
+
+.piket-app-scope .jtab th {
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--mut);
+  text-align: left;
+  font-weight: 600;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.piket-app-scope .jtab td {
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.piket-app-scope .jtab tr:last-child td {
+  border-bottom: 0;
+}
+
+.piket-app-scope .jtab td.n {
+  font-family: var(--f-data);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.piket-app-scope .jtab th.n {
+  text-align: right;
+}
+
+.piket-app-scope .bar7 {
+  display: flex;
+  gap: 3px;
+  flex-wrap: nowrap;
+}
+
+.piket-app-scope .bar7 i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--line);
+}
+
+.piket-app-scope .bar7 i.u {
+  background: var(--c-m);
+}
+
+.piket-app-scope .bar7 i.x {
+  background: var(--warn);
+}
