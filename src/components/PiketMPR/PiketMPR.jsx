@@ -106,20 +106,20 @@ const same = (a, b) => stable(a || {}) === stable(b || {});
 const DEFAULT_CONFIG = {
   eras: [
     {
-      from: '2026-10-09',
+      from: '2026-10-16',
       members: [
-        { name: 'Mujahid', start: 1 },
-        { name: 'Fadel', start: 2 },
-        { name: 'Malik', start: 3 },
-        { name: 'Nabiel', start: 4 },
-        { name: 'Nafhan', start: 5 },
-        { name: 'Yusuf', start: 6 },
-        { name: 'Septian', start: 7 },
-        { name: 'Nurdin', start: 8 },
+        { name: 'Malik', start: 1 },
+        { name: 'Nurdin', start: 2 },
+        { name: 'Fadel', start: 3 },
+        { name: 'Nafhan', start: 4 },
+        { name: 'Yusuf', start: 5 },
+        { name: 'Mujahid', start: 6 },
+        { name: 'Amrul', start: 7 },
+        { name: 'Septian', start: 8 },
         { name: 'Wildan', start: 9 },
-        { name: 'Zufar', start: 10 },
-        { name: 'Amrul', start: 11 },
-        { name: 'Raihan', start: 12 }
+        { name: 'Nabiel', start: 10 },
+        { name: 'Raihan', start: 11 },
+        { name: 'Zufar', start: 12 }
       ]
     }
   ],
@@ -130,13 +130,21 @@ const DEFAULT_CONFIG = {
   ramadanH1: ''
 };
 
+const DEFAULT_WEEKS = {
+  '2026-10-16': {
+    manual: {
+      'Zufar': 'Sarang Laba-Laba Lt.1'
+    }
+  }
+};
+
 export default function PiketMPR({
   cloudData = {},
   onSavePiketCloud,
   setMessage
 }) {
   const [tab, setTab] = useState('minggu');
-  const [week, setWeek] = useState(() => upcomingFriday());
+  const [week, setWeek] = useState('2026-10-16');
   const [openSlot, setOpenSlot] = useState(null);
   const [month, setMonth] = useState(() => monthKey(upcomingFriday()));
   const [toastData, setToastData] = useState(null);
@@ -157,9 +165,12 @@ export default function PiketMPR({
       const saved = localStorage.getItem('piket_config_v1');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed?.eras?.length) return parsed;
+        if (parsed?.eras?.length && parsed.eras[0]?.from === '2026-10-16' && parsed.eras[0]?.members?.[0]?.name === 'Malik') {
+          return parsed;
+        }
       }
     } catch (e) {}
+    localStorage.setItem('piket_config_v1', JSON.stringify(DEFAULT_CONFIG));
     return DEFAULT_CONFIG;
   });
 
@@ -167,9 +178,22 @@ export default function PiketMPR({
   const [weeks, setWeeks] = useState(() => {
     try {
       const saved = localStorage.getItem('piket_weeks_v1');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          return {
+            ...DEFAULT_WEEKS,
+            ...parsed,
+            '2026-10-16': {
+              ...DEFAULT_WEEKS['2026-10-16'],
+              ...(parsed['2026-10-16'] || {})
+            }
+          };
+        }
+      }
     } catch (e) {}
-    return {};
+    localStorage.setItem('piket_weeks_v1', JSON.stringify(DEFAULT_WEEKS));
+    return DEFAULT_WEEKS;
   });
 
   // 3. Kerja bakti state
