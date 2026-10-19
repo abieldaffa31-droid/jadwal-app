@@ -117,9 +117,9 @@ const DEFAULT_CONFIG = {
         { name: 'Amrul', start: 7 },
         { name: 'Septian', start: 8 },
         { name: 'Wildan', start: 9 },
-        { name: 'Nabiel', start: 10 },
+        { name: 'Zufar', start: 10 },
         { name: 'Raihan', start: 11 },
-        { name: 'Zufar', start: 12 }
+        { name: 'Nabiel', start: 12 }
       ]
     }
   ],
@@ -133,7 +133,7 @@ const DEFAULT_CONFIG = {
 const DEFAULT_WEEKS = {
   '2026-10-16': {
     manual: {
-      'Zufar': 'Sarang Laba-Laba Lt.1'
+      'Nabiel': 'Sarang Laba-Laba Lt.1'
     }
   }
 };
@@ -165,7 +165,13 @@ export default function PiketMPR({
       const saved = localStorage.getItem('piket_config_v1');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed?.eras?.length && parsed.eras[0]?.from === '2026-10-16' && parsed.eras[0]?.members?.[0]?.name === 'Malik') {
+        if (
+          parsed?.eras?.length &&
+          parsed.eras[0]?.from === '2026-10-16' &&
+          parsed.eras[0]?.members?.[0]?.name === 'Malik' &&
+          parsed.eras[0]?.members?.[9]?.name === 'Zufar' &&
+          parsed.eras[0]?.members?.[11]?.name === 'Nabiel'
+        ) {
           return parsed;
         }
       }
