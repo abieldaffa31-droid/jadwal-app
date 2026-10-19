@@ -1,23 +1,29 @@
-/* Sistem Piket MPR CSS */
+/* Sistem Piket MPR CSS - Tema Biru & Putih (Blue & White) */
 @import url('https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@600;700;800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  --bg: #ECEDE8;
-  --surface: #F7F7F3;
-  --ink: #17201C;
-  --mut: #5C6560;
-  --faint: #A1A8A3;
-  --line: #D5D8D1;
-  --c-b: #17201C;
-  --c-m: #7A857F;
-  --c-r: #C8CDC6;
-  --on-b: #F7F7F3;
-  --accent: #1E6A51;
-  --accent-soft: #D6E6DE;
-  --warn: #9C5419;
-  --warn-soft: #F1E1D2;
-  --ok: #2C6A3F;
-  --ok-soft: #DCEBDD;
+  --bg: #F0F4F8;
+  --surface: #FFFFFF;
+  --ink: #0F233B;
+  --mut: #4B637D;
+  --faint: #94A3B8;
+  --line: #D0DFEE;
+  --panel: #FFFFFF;
+
+  /* Kategori Beban Piket (Tema Biru-Putih) */
+  --c-b: #1D4ED8; /* Berat: Deep Royal Blue */
+  --c-m: #3B82F6; /* Menengah: Vibrant Sky Blue */
+  --c-r: #DBEAFE; /* Ringan: Soft Ice Blue */
+  --on-b: #FFFFFF; /* Teks putih di atas warna biru pekat */
+
+  /* Warna Aksen & Notifikasi */
+  --accent: #2563EB;
+  --accent-soft: #EFF6FF;
+  --warn: #C2410C;
+  --warn-soft: #FFEDD5;
+  --ok: #0D9488;
+  --ok-soft: #E6FFFA;
+
   --f-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
   --f-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-data: "JetBrains Mono", ui-monospace, Menlo, monospace;
@@ -25,43 +31,45 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #111513;
-    --surface: #191E1B;
-    --ink: #E5E9E5;
-    --mut: #9AA39E;
-    --faint: #5C6560;
-    --line: #2A312D;
-    --c-b: #E5E9E5;
-    --c-m: #86908B;
-    --c-r: #38403B;
-    --on-b: #111513;
-    --accent: #62B794;
-    --accent-soft: #1D3229;
-    --warn: #E19A57;
-    --warn-soft: #352419;
-    --ok: #7CC48F;
-    --ok-soft: #1C2E22;
+    --bg: #0B131F;
+    --surface: #111C2D;
+    --ink: #E2EAF4;
+    --mut: #8FA3BD;
+    --faint: #475B73;
+    --line: #1E2E42;
+    --panel: #111C2D;
+    --c-b: #3B82F6;
+    --c-m: #60A5FA;
+    --c-r: #1E3A5F;
+    --on-b: #FFFFFF;
+    --accent: #60A5FA;
+    --accent-soft: #142847;
+    --warn: #F97316;
+    --warn-soft: #382013;
+    --ok: #2DD4BF;
+    --ok-soft: #11332F;
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #111513;
-  --surface: #191E1B;
-  --ink: #E5E9E5;
-  --mut: #9AA39E;
-  --faint: #5C6560;
-  --line: #2A312D;
-  --c-b: #E5E9E5;
-  --c-m: #86908B;
-  --c-r: #38403B;
-  --on-b: #111513;
-  --accent: #62B794;
-  --accent-soft: #1D3229;
-  --warn: #E19A57;
-  --warn-soft: #352419;
-  --ok: #7CC48F;
-  --ok-soft: #1C2E22;
+  --bg: #0B131F;
+  --surface: #111C2D;
+  --ink: #E2EAF4;
+  --mut: #8FA3BD;
+  --faint: #475B73;
+  --line: #1E2E42;
+  --panel: #111C2D;
+  --c-b: #3B82F6;
+  --c-m: #60A5FA;
+  --c-r: #1E3A5F;
+  --on-b: #FFFFFF;
+  --accent: #60A5FA;
+  --accent-soft: #142847;
+  --warn: #F97316;
+  --warn-soft: #382013;
+  --ok: #2DD4BF;
+  --ok-soft: #11332F;
   color-scheme: dark;
 }
 
@@ -76,7 +84,7 @@
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid var(--line);
-  box-shadow: 0 4px 20px -2px rgba(0,0,0,0.06);
+  box-shadow: 0 4px 20px -2px rgba(15, 35, 59, 0.08);
 }
 
 .piket-app-scope * {
@@ -102,6 +110,7 @@
   font-family: var(--f-display);
   margin: 0;
   text-wrap: balance;
+  color: var(--ink);
 }
 
 .piket-app-scope .num {
@@ -137,11 +146,12 @@
 .piket-app-scope header.top {
   position: sticky;
   top: 0;
-  z-index: 5;
+  z-index: 10;
   background: var(--bg);
   border-bottom: 1px solid var(--line);
   margin-inline: -20px;
-  padding: 16px 20px 0;
+  padding: 14px 20px 0;
+  backdrop-filter: blur(8px);
 }
 
 @media (max-width: 480px) {
@@ -164,6 +174,7 @@
   font-weight: 800;
   font-size: 20px;
   letter-spacing: -.01em;
+  color: var(--ink);
 }
 
 .piket-app-scope .brand span {
@@ -212,16 +223,17 @@
   cursor: pointer;
   border-bottom: 2px solid transparent;
   white-space: nowrap;
+  transition: all 0.15s ease;
 }
 
 .piket-app-scope .tab:hover {
-  color: var(--ink);
+  color: var(--accent);
 }
 
 .piket-app-scope .tab[aria-selected="true"] {
-  color: var(--ink);
+  color: var(--accent);
   border-bottom-color: var(--accent);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .piket-app-scope .banner {
@@ -277,22 +289,35 @@
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
+  color: var(--ink);
 }
 
 .piket-app-scope .btn:hover {
-  border-color: var(--faint);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .piket-app-scope .btn.pri {
-  background: var(--ink);
-  color: var(--bg);
-  border-color: var(--ink);
+  background: var(--accent);
+  color: #FFFFFF;
+  border-color: var(--accent);
+}
+
+.piket-app-scope .btn.pri:hover {
+  background: #1D4ED8;
+  border-color: #1D4ED8;
+  color: #FFFFFF;
 }
 
 .piket-app-scope .btn.acc {
-  background: var(--accent);
-  color: var(--surface);
-  border-color: var(--accent);
+  background: #1D4ED8;
+  color: #FFFFFF;
+  border-color: #1D4ED8;
+}
+
+.piket-app-scope .btn.acc:hover {
+  background: #1E40AF;
+  border-color: #1E40AF;
 }
 
 .piket-app-scope .btn.ghost {
@@ -303,8 +328,9 @@
 }
 
 .piket-app-scope .btn.ghost:hover {
-  color: var(--ink);
+  color: var(--accent);
   border-color: var(--line);
+  background: var(--accent-soft);
 }
 
 .piket-app-scope .btn:disabled {
@@ -321,12 +347,19 @@
 .piket-app-scope input[type=date],
 .piket-app-scope input[type=text],
 .piket-app-scope textarea {
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 7px;
   padding: 6px 9px;
   font-size: 14px;
   min-width: 0;
+  color: var(--ink);
+}
+
+.piket-app-scope select:focus,
+.piket-app-scope input:focus,
+.piket-app-scope textarea:focus {
+  border-color: var(--accent);
 }
 
 .piket-app-scope textarea {
@@ -347,6 +380,7 @@
   font-size: 18px;
   min-width: 170px;
   text-align: center;
+  color: var(--ink);
 }
 
 .piket-app-scope .tag {
@@ -374,6 +408,12 @@
 
 .piket-app-scope .tag.r {
   background: var(--c-r);
+  color: var(--c-b);
+}
+
+.piket-app-scope .tag.f {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--mut);
   color: var(--ink);
 }
 
@@ -403,7 +443,12 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
   margin-bottom: 16px;
-  border-top: 2px solid var(--ink);
+  border-top: 2px solid var(--accent);
+  background: var(--surface);
+  border-radius: 0 0 8px 8px;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 
 @media (max-width: 640px) {
@@ -413,18 +458,16 @@
 }
 
 .piket-app-scope .sm-i {
-  padding: 12px 14px 4px 0;
+  padding: 12px 14px 10px 14px;
 }
 
 .piket-app-scope .sm-i + .sm-i {
-  padding-left: 14px;
   border-left: 1px solid var(--line);
 }
 
 @media (max-width: 640px) {
   .piket-app-scope .sm-i:nth-child(3) {
     border-left: 0;
-    padding-left: 0;
   }
   .piket-app-scope .sm-i:nth-child(n+3) {
     border-top: 1px solid var(--line);
@@ -436,6 +479,7 @@
   font-weight: 700;
   font-size: 24px;
   letter-spacing: -.02em;
+  color: var(--ink);
 }
 
 .piket-app-scope .sm-i .l {
@@ -467,6 +511,9 @@
   .piket-app-scope .row .who {
     grid-column: 1 / -1;
     order: 3;
+  }
+  .piket-app-scope .row .acts {
+    min-width: 0;
   }
 }
 
@@ -508,6 +555,13 @@
   align-items: center;
   justify-content: end;
   flex-wrap: wrap;
+  min-width: 190px;
+}
+
+@media (max-width: 640px) {
+  .piket-app-scope .row .acts {
+    min-width: 0;
+  }
 }
 
 .piket-app-scope .st {
@@ -520,6 +574,7 @@
   cursor: pointer;
   color: var(--mut);
   min-width: 78px;
+  transition: all 0.15s ease;
 }
 
 .piket-app-scope .st.selesai {
@@ -602,13 +657,14 @@
   white-space: pre-wrap;
   font-family: var(--f-data);
   font-size: 12.5px;
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 14px;
   max-height: 420px;
   overflow: auto;
   margin: 0;
+  color: var(--ink);
 }
 
 .piket-app-scope .notice {
@@ -622,6 +678,47 @@
 .piket-app-scope .notice.warn {
   background: var(--warn-soft);
   color: var(--warn);
+}
+
+/* History / Log Panel */
+.piket-app-scope .hist {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 0 0 12px;
+  max-height: 420px;
+  overflow: auto;
+  box-shadow: 0 2px 8px rgba(15, 35, 59, 0.05);
+}
+
+.piket-app-scope .hist .hrow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.piket-app-scope .hist .hrow:first-of-type {
+  border-top: 0;
+}
+
+.piket-app-scope .hist .hrow b {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.piket-app-scope .hist .hrow small {
+  font-size: 12px;
+  color: var(--mut);
+}
+
+.piket-app-scope .hist .hrow.undone b {
+  color: var(--mut);
+  text-decoration: line-through;
 }
 
 /* grid */
@@ -666,20 +763,31 @@
 .piket-app-scope td.b {
   background: var(--c-b);
   color: var(--on-b);
+  font-weight: 600;
 }
 
 .piket-app-scope td.m {
   background: var(--c-m);
   color: var(--on-b);
+  font-weight: 600;
 }
 
 .piket-app-scope td.r {
   background: var(--c-r);
+  color: var(--c-b);
+  font-weight: 600;
 }
 
 .piket-app-scope td.c {
   background: var(--accent-soft);
   color: var(--accent);
+  font-weight: 600;
+}
+
+.piket-app-scope table.g td.f {
+  background: #FFFFFF;
+  box-shadow: inset 0 0 0 1px var(--mut);
+  color: var(--ink);
   font-weight: 600;
 }
 
@@ -693,6 +801,7 @@
 
 .piket-app-scope th.now {
   color: var(--accent) !important;
+  font-weight: 700;
 }
 
 .piket-app-scope .legend {
@@ -885,13 +994,34 @@
   left: 50%;
   bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
-  background: var(--ink);
-  color: var(--bg);
+  background: #0F233B;
+  color: #FFFFFF;
   padding: 9px 16px;
   border-radius: 8px;
   font-size: 13px;
   z-index: 9999;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 16px rgba(15, 35, 59, 0.25);
+  display: inline-flex;
+  align-items: center;
+}
+
+.piket-app-scope .toast button {
+  margin-left: 10px;
+  background: transparent;
+  border: 1px solid #60A5FA;
+  color: #93C5FD;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.piket-app-scope .toast button:hover {
+  background: rgba(96, 165, 250, 0.2);
+  color: #FFFFFF;
 }
 
 .piket-app-scope .area {
@@ -919,11 +1049,13 @@
   padding: 0;
   font-size: 13px;
   color: var(--surface);
+  transition: all 0.15s ease;
 }
 
 .piket-app-scope .area .ck.on {
   background: var(--ok);
   border-color: var(--ok);
+  color: #FFFFFF;
 }
 
 .piket-app-scope .area .ck:disabled {

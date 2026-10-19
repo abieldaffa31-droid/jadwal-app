@@ -6,23 +6,23 @@ const SL = {
   VS: { n: 'Vakum Selatan', lt: 'Lt.1', k: 'b', wa: 'Lt.1 Vacuum Selatan' },
   VT: { n: 'Vakum Tengah', lt: 'Lt.1', k: 'b', wa: 'Lt.1 Vacuum Tengah' },
   VU: { n: 'Vakum Utara', lt: 'Lt.1', k: 'b', wa: 'Lt.1 Vacuum Utara' },
-  WC3: { n: 'WC 3 Utara', lt: 'Lt.1', k: 'b', wa: 'Lt.1 WC 3 Utara' },
-  WC2: { n: 'WC 2 Utara & T4 Wudhu', lt: 'Lt.1', k: 'b', wa: 'Lt.1 WC 2 Utara & T4 Wudhu' },
+  WC3: { n: 'WC Jongkok', lt: 'Lt.1', k: 'b', wa: 'Lt.1 WC Jongkok' },
+  WC2: { n: 'WC Duduk', lt: 'Lt.1', k: 'b', wa: 'Lt.1 WC Duduk' },
   T4: { n: 'T4 Wudhu Barat & Timur', lt: 'Lt.1', k: 'm', wa: 'Lt.1 T4 Wudhu Barat dan Lt.1 T4 Wudhu Timur' },
   GEN: { n: 'Vakum & Panaskan Genset', lt: 'Lt.2', k: 'r', wa: 'Lt.2 Vakum & Panaskan Genset' },
   L2: { n: 'WC & T4 Wudhu', lt: 'Lt.2', k: 'r', wa: 'Lt.2 WC & T4 Wudhu' },
   L3: { n: 'WC & T4 Wudhu', lt: 'Lt.3', k: 'r', wa: 'Lt.3 WC & T4 Wudhu' },
   MED: { n: 'Media, Sekre, Mihrab & Rak Buku', lt: '', k: 'r', wa: 'R. Media, Sekre, Mihrab & Rak Buku' },
   KACA: { n: 'Kaca', lt: 'Lt.1', k: 'r', wa: 'Lt.1 Kaca' },
-  BEBAS: { n: 'Bebas bergilir', lt: '', k: 'f' }
+  BEBAS: { n: 'Tugas dari koordinator', lt: '', k: 'f' }
 };
 
 const CODE = {
-  VS: 'VS', VT: 'VT', VU: 'VU', WC3: 'WC3', WC2: 'WC2', T4: 'T4',
-  GEN: 'Gen', L2: 'WC Lt2', L3: 'WC Lt3', MED: 'Media', KACA: 'Kaca', BEBAS: 'Bebas'
+  VS: 'VS', VT: 'VT', VU: 'VU', WC3: 'Jongkok', WC2: 'Duduk', T4: 'T4',
+  GEN: 'Gen', L2: 'WC Lt2', L3: 'WC Lt3', MED: 'Media', KACA: 'Kaca', BEBAS: 'Manual'
 };
 
-const KL = { b: 'Berat', m: 'Menengah', r: 'Ringan', f: 'Bebas' };
+const KL = { b: 'Berat', m: 'Menengah', r: 'Ringan', f: 'Manual' };
 const BASE = ['VS', 'GEN', 'WC3', 'L2', 'VT', 'T4', 'WC2', 'L3', 'VU', 'MED'];
 const ORDER = ['VS', 'VT', 'VU', 'WC3', 'WC2', 'T4', 'GEN', 'L2', 'L3', 'MED', 'KACA'];
 const KACA_SIDES = ['Selatan', 'Timur', 'Utara'];
@@ -90,6 +90,19 @@ function upcomingFriday() {
   return addDays(t, (5 - dow + 7) % 7);
 }
 
+function relTime(isoStr) {
+  const m = Math.round((Date.now() - new Date(isoStr).getTime()) / 60000);
+  if (m < 1) return 'baru saja';
+  if (m < 60) return m + ' menit lalu';
+  const h = Math.round(m / 60);
+  if (h < 24) return h + ' jam lalu';
+  const d = new Date(isoStr);
+  return d.getDate() + ' ' + MON3[d.getMonth()] + ' ' + String(d.getHours()).padStart(2, '0') + '.' + String(d.getMinutes()).padStart(2, '0');
+}
+
+const stable = o => JSON.stringify(o, (k, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).sort().reduce((a, x) => (a[x] = v[x], a), {}) : v);
+const same = (a, b) => stable(a || {}) === stable(b || {});
+
 const DEFAULT_CONFIG = {
   eras: [
     {
@@ -126,10 +139,11 @@ export default function PiketMPR({
   const [week, setWeek] = useState(() => upcomingFriday());
   const [openSlot, setOpenSlot] = useState(null);
   const [month, setMonth] = useState(() => monthKey(upcomingFriday()));
-  const [toastMsg, setToastMsg] = useState(null);
+  const [toastData, setToastData] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [histOpen, setHistOpen] = useState(false);
 
-  // Form sheet state (saat membuka slot)
+  // Form sheet state
   const [sheetAbsType, setSheetAbsType] = useState('libur');
   const [sheetCand, setSheetCand] = useState('');
 
@@ -149,7 +163,7 @@ export default function PiketMPR({
     return DEFAULT_CONFIG;
   });
 
-  // 2. Weeks state (absen, over, minta, liburSub, status)
+  // 2. Weeks state (absen, over, minta, liburSub, status, manual)
   const [weeks, setWeeks] = useState(() => {
     try {
       const saved = localStorage.getItem('piket_weeks_v1');
@@ -162,6 +176,15 @@ export default function PiketMPR({
   const [bakti, setBakti] = useState(() => {
     try {
       const saved = localStorage.getItem('piket_kerjabakti_v1');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {};
+  });
+
+  // 4. Log state (history for undo/redo)
+  const [log, setLog] = useState(() => {
+    try {
+      const saved = localStorage.getItem('piket_log_v1');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return {};
@@ -181,22 +204,35 @@ export default function PiketMPR({
       setBakti(cloudData.piket_kerjabakti);
       localStorage.setItem('piket_kerjabakti_v1', JSON.stringify(cloudData.piket_kerjabakti));
     }
+    if (cloudData.piket_log) {
+      setLog(cloudData.piket_log);
+      localStorage.setItem('piket_log_v1', JSON.stringify(cloudData.piket_log));
+    }
   }, [cloudData]);
 
   // Toast helper
   const toastTimeoutRef = useRef(null);
-  const showToast = (msg) => {
-    setToastMsg(msg);
+  const showToast = (msg, act = null) => {
+    setToastData({ msg, act });
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-    toastTimeoutRef.current = setTimeout(() => setToastMsg(null), 2600);
+    toastTimeoutRef.current = setTimeout(() => setToastData(null), act ? 6000 : 2600);
   };
 
-  // Helper simpan data (LocalStorage + Supabase Cloud)
-  const save = (path, mutate) => {
+  // Helper simpan data (LocalStorage + Supabase Cloud + Log)
+  const save = (path, mutate, label) => {
+    const lab = label || (path.startsWith('weeks/') ? `Perubahan jadwal ${fmtShort(path.replace('weeks/', ''))}` : path.startsWith('kerjabakti/') ? `Kerja bakti ${path.replace('kerjabakti/', '')}` : 'Pengaturan');
+
+    let beforeData = null;
+    let afterData = null;
+
     if (path === 'config/main') {
       setConfig(prev => {
         const cur = prev ? structuredClone(prev) : structuredClone(DEFAULT_CONFIG);
+        beforeData = structuredClone(cur);
         const next = mutate(cur) || cur;
+        afterData = structuredClone(next);
+        if (same(beforeData, afterData)) return prev;
+
         localStorage.setItem('piket_config_v1', JSON.stringify(next));
         if (onSavePiketCloud) onSavePiketCloud({ piket_config: next });
         return next;
@@ -205,7 +241,11 @@ export default function PiketMPR({
       const wKey = path.replace('weeks/', '');
       setWeeks(prev => {
         const cur = prev[wKey] ? structuredClone(prev[wKey]) : {};
+        beforeData = structuredClone(cur);
         const nextW = mutate(cur) || cur;
+        afterData = structuredClone(nextW);
+        if (same(beforeData, afterData)) return prev;
+
         const next = { ...prev, [wKey]: nextW };
         localStorage.setItem('piket_weeks_v1', JSON.stringify(next));
         if (onSavePiketCloud) onSavePiketCloud({ piket_weeks: next });
@@ -215,14 +255,121 @@ export default function PiketMPR({
       const mKey = path.replace('kerjabakti/', '');
       setBakti(prev => {
         const cur = prev[mKey] ? structuredClone(prev[mKey]) : {};
+        beforeData = structuredClone(cur);
         const nextB = mutate(cur) || cur;
+        afterData = structuredClone(nextB);
+        if (same(beforeData, afterData)) return prev;
+
         const next = { ...prev, [mKey]: nextB };
         localStorage.setItem('piket_kerjabakti_v1', JSON.stringify(next));
         if (onSavePiketCloud) onSavePiketCloud({ piket_kerjabakti: next });
         return next;
       });
     }
+
+    if (beforeData && afterData && !same(beforeData, afterData)) {
+      const logId = new Date().toISOString().replace(/[^0-9]/g, '') + Math.random().toString(36).slice(2, 6);
+      const logEntry = {
+        path,
+        before: beforeData,
+        after: afterData,
+        label: lab,
+        at: new Date().toISOString(),
+        undone: false
+      };
+      setLog(prevLog => {
+        const updatedLog = { ...prevLog, [logId]: logEntry };
+        localStorage.setItem('piket_log_v1', JSON.stringify(updatedLog));
+        if (onSavePiketCloud) onSavePiketCloud({ piket_log: updatedLog });
+        return updatedLog;
+      });
+
+      showToast(`${lab} tersimpan`, {
+        label: 'Urungkan',
+        fn: () => undoLog(logId, false)
+      });
+    }
   };
+
+  const undoLog = (id, redo = false) => {
+    const e = log[id];
+    if (!e) {
+      showToast('Riwayat tidak ditemukan');
+      return;
+    }
+    const from = redo ? e.before : e.after;
+    const to = redo ? e.after : e.before;
+
+    if (e.path === 'config/main') {
+      setConfig(prev => {
+        if (!same(prev, from)) {
+          showToast(redo ? 'Tidak bisa diulang: data ini sudah berubah lagi.' : 'Tidak bisa diurungkan: data sudah diubah lagi.');
+          return prev;
+        }
+        const next = structuredClone(to || {});
+        localStorage.setItem('piket_config_v1', JSON.stringify(next));
+        if (onSavePiketCloud) onSavePiketCloud({ piket_config: next });
+        return next;
+      });
+    } else if (e.path.startsWith('weeks/')) {
+      const wKey = e.path.replace('weeks/', '');
+      setWeeks(prev => {
+        const cur = prev[wKey] || {};
+        if (!same(cur, from)) {
+          showToast(redo ? 'Tidak bisa diulang: data ini sudah berubah lagi.' : 'Tidak bisa diurungkan: data sudah diubah lagi.');
+          return prev;
+        }
+        const next = { ...prev, [wKey]: structuredClone(to || {}) };
+        localStorage.setItem('piket_weeks_v1', JSON.stringify(next));
+        if (onSavePiketCloud) onSavePiketCloud({ piket_weeks: next });
+        return next;
+      });
+    } else if (e.path.startsWith('kerjabakti/')) {
+      const mKey = e.path.replace('kerjabakti/', '');
+      setBakti(prev => {
+        const cur = prev[mKey] || {};
+        if (!same(cur, from)) {
+          showToast(redo ? 'Tidak bisa diulang: data ini sudah berubah lagi.' : 'Tidak bisa diurungkan: data sudah diubah lagi.');
+          return prev;
+        }
+        const next = { ...prev, [mKey]: structuredClone(to || {}) };
+        localStorage.setItem('piket_kerjabakti_v1', JSON.stringify(next));
+        if (onSavePiketCloud) onSavePiketCloud({ piket_kerjabakti: next });
+        return next;
+      });
+    }
+
+    setLog(prevLog => {
+      const updatedLog = { ...prevLog, [id]: { ...e, undone: !redo } };
+      localStorage.setItem('piket_log_v1', JSON.stringify(updatedLog));
+      if (onSavePiketCloud) onSavePiketCloud({ piket_log: updatedLog });
+      return updatedLog;
+    });
+
+    showToast(redo ? `Diulang: ${e.label}` : `Diurungkan: ${e.label}`, {
+      label: redo ? 'Urungkan lagi' : 'Ulangi',
+      fn: () => undoLog(id, !redo)
+    });
+  };
+
+  // Keyboard shortcut Ctrl+Z / Cmd+Z untuk undo
+  useEffect(() => {
+    const handleKeyDown = (ev) => {
+      if (!(ev.ctrlKey || ev.metaKey) || ev.key.toLowerCase() !== 'z' || ev.shiftKey) return;
+      const t = ev.target;
+      if (t && ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)) return;
+
+      const last = Object.entries(log)
+        .filter(([, e]) => !e.undone)
+        .sort((a, b) => (a[1].at < b[1].at ? 1 : -1))[0];
+      if (last) {
+        ev.preventDefault();
+        undoLog(last[0], false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [log]);
 
   /* ===== ROTATION CALCULATIONS ===== */
   const eraFor = (date) => {
@@ -353,27 +500,68 @@ export default function PiketMPR({
       return r && r.actual && !away.has(r.actual) && key !== k ? r.actual : null;
     };
 
+    const manual = v.bebas.filter(n => !away.has(n) && !busy.has(n));
+    if (!heavy) {
+      manual.forEach(n =>
+        add({
+          name: n,
+          from: null,
+          label: `${n} (tugas dari koordinator)`,
+          note: 'Pengganti pertama untuk slot ringan: minggu ini dia tidak pegang slot tetap.'
+        })
+      );
+    }
     if (!heavy && holder('KACA')) {
-      add({ name: holder('KACA'), from: 'KACA', label: `${holder('KACA')} (pegang Kaca)`, note: 'Pengganti pertama untuk slot ringan. Slot Kaca dikosongkan minggu ini.' });
+      add({
+        name: holder('KACA'),
+        from: 'KACA',
+        label: `${holder('KACA')} (pegang Kaca)`,
+        note: 'Pengganti pertama untuk slot ringan. Slot Kaca dikosongkan minggu ini.'
+      });
     }
     if (heavy && holder('MED')) {
-      add({ name: holder('MED'), from: 'MED', label: `${holder('MED')} (pegang Media)`, note: 'Pengganti pertama. Minggu depannya dia pegang Kaca, jadi tidak kena berat dua kali. Slot Media dikosongkan.' });
+      add({
+        name: holder('MED'),
+        from: 'MED',
+        label: `${holder('MED')} (pegang Media)`,
+        note: 'Pengganti pertama. Minggu depannya dia pegang Kaca, jadi tidak kena berat dua kali. Slot Media dikosongkan.'
+      });
     }
-    v.bebas.forEach(n => {
-      if (!away.has(n)) add({ name: n, from: null, label: `${n} (bebas bergilir)`, note: 'Sedang tidak bertugas.' });
+    (config.relawan || []).forEach(n => {
+      if (busy.has(n) || away.has(n)) return;
+      add({ name: n, from: null, label: `${n} (relawan)`, note: 'Sukarela.' });
     });
+    if (heavy) {
+      manual.forEach(n =>
+        add({
+          name: n,
+          from: null,
+          label: `${n} (tugas dari koordinator)`,
+          note: 'Minggu ini tidak pegang slot tetap, tapi minggu depannya dia pegang Vakum Selatan, jadi kena berat dua minggu berturut-turut.'
+        })
+      );
+    }
     v.era.members
       .map(m => m.name)
-      .concat(config.relawan || [])
       .forEach(n => {
         if (busy.has(n) || away.has(n)) return;
-        add({ name: n, from: null, label: `${n}${(config.relawan || []).includes(n) ? ' (relawan)' : ''}`, note: 'Sukarela.' });
+        add({ name: n, from: null, label: n, note: 'Sukarela.' });
       });
     if (heavy && holder('KACA')) {
-      add({ name: holder('KACA'), from: 'KACA', label: `${holder('KACA')} (pegang Kaca)`, note: 'Minggu depannya dia pegang Vakum Selatan, jadi kena berat dua minggu berturut-turut. Slot Kaca dikosongkan.' });
+      add({
+        name: holder('KACA'),
+        from: 'KACA',
+        label: `${holder('KACA')} (pegang Kaca)`,
+        note: 'Minggu depannya dia pegang Vakum Selatan, jadi kena berat dua minggu berturut-turut. Slot Kaca dikosongkan.'
+      });
     }
     if (heavy && holder('L3')) {
-      add({ name: holder('L3'), from: 'L3', label: `${holder('L3')} (pegang WC Lt.3)`, note: 'Pilihan terakhir: berat dua minggu berturut-turut. Slot WC Lt.3 dikosongkan.' });
+      add({
+        name: holder('L3'),
+        from: 'L3',
+        label: `${holder('L3')} (pegang WC Lt.3)`,
+        note: 'Pilihan terakhir: berat dua minggu berturut-turut. Slot WC Lt.3 dikosongkan.'
+      });
     }
     return out;
   };
@@ -382,12 +570,16 @@ export default function PiketMPR({
   const cycleStatus = (k) => {
     const cur = ((weeks[week] || {}).status || {})[k] || '';
     const nx = { '': 'selesai', selesai: 'ulang', ulang: '' }[cur];
-    save('weeks/' + week, w => {
-      w.status = w.status || {};
-      if (nx) w.status[k] = nx;
-      else delete w.status[k];
-      return w;
-    });
+    save(
+      'weeks/' + week,
+      w => {
+        w.status = w.status || {};
+        if (nx) w.status[k] = nx;
+        else delete w.status[k];
+        return w;
+      },
+      `Status ${slotName(k, plannedWeek(week))}: ${nx || 'belum'}, ${fmtShort(week)}`
+    );
   };
 
   const handleToggleOpen = (k, v) => {
@@ -402,9 +594,10 @@ export default function PiketMPR({
       const ji = holder ? jatahInfo(holder, week.slice(0, 4)) : null;
       const already = holder && (v.w.minta || []).some(m => m.name === holder);
       const canLibur = holder && ji?.sisa > 0 && !already;
+      const hasMan = c.length > 0 && /tugas dari koordinator/.test(c[0].label);
 
       setSheetAbsType(canLibur ? 'libur' : 'pulang');
-      if (ringan && holder) {
+      if (ringan && holder && !hasMan) {
         setSheetCand('__kosong');
       } else if (c.length > 0) {
         setSheetCand(`${c[0].name}|${c[0].from || ''}`);
@@ -423,39 +616,45 @@ export default function PiketMPR({
     }
     const [sub, from] = sheetCand === '__kosong' ? ['', ''] : sheetCand.split('|');
 
-    save('weeks/' + week, w => {
-      w.over = w.over || {};
-      w.absen = w.absen || {};
-      if (sheetAbsType === 'libur') {
-        w.minta = (w.minta || []).filter(m => m.name !== holder);
-        w.minta.push({ name: holder, at: new Date().toISOString() });
-        w.liburSub = w.liburSub || {};
-        w.liburSub[holder] = { slot: k, sub, from: from || null };
-      } else {
-        if (holder && sheetAbsType) w.absen[holder] = sheetAbsType;
-        w.over[k] = sub;
-        if (from) w.over[from] = '';
-      }
-      if (w.status) delete w.status[k];
-      return w;
-    });
+    save(
+      'weeks/' + week,
+      w => {
+        w.over = w.over || {};
+        w.absen = w.absen || {};
+        if (sheetAbsType === 'libur') {
+          w.minta = (w.minta || []).filter(m => m.name !== holder);
+          w.minta.push({ name: holder, at: new Date().toISOString() });
+          w.liburSub = w.liburSub || {};
+          w.liburSub[holder] = { slot: k, sub, from: from || null };
+        } else {
+          if (holder && sheetAbsType) w.absen[holder] = sheetAbsType;
+          w.over[k] = sub;
+          if (from) w.over[from] = '';
+        }
+        if (w.status) delete w.status[k];
+        return w;
+      },
+      `${holder ? holder + ' tidak hadir di ' : 'Isi '}${slotName(k, v)}, ${fmtShort(week)}`
+    );
     setOpenSlot(null);
-    showToast(sheetAbsType === 'libur' ? 'Permintaan libur piket dicatat' : 'Tersimpan');
   };
 
   const cancelLibur = (n) => {
-    save('weeks/' + week, w => {
-      w.minta = (w.minta || []).filter(m => m.name !== n);
-      if (w.liburSub) delete w.liburSub[n];
-      return w;
-    });
+    save(
+      'weeks/' + week,
+      w => {
+        w.minta = (w.minta || []).filter(m => m.name !== n);
+        if (w.liburSub) delete w.liburSub[n];
+        return w;
+      },
+      `Batal libur ${n}, ${fmtShort(week)}`
+    );
     showToast('Libur dibatalkan');
   };
 
   const resetWeek = () => {
-    save('weeks/' + week, () => ({}));
+    save('weeks/' + week, () => ({}), `Minggu ${fmtShort(week)} dikembalikan ke jadwal awal`);
     setConfirmReset(false);
-    showToast('Dikembalikan ke jadwal awal');
   };
 
   /* ===== WHATSAPP GENERATOR ===== */
@@ -475,10 +674,23 @@ export default function PiketMPR({
       L.push('');
     });
     L.push(`- *Pel Plaza:* _${config.plaza || ''}_`, '');
+
     const away = Object.entries(v.absen)
       .map(([n, t]) => `${n} (${(ABS[t] || t).toLowerCase()})`)
       .concat(v.libur.map(n => `${n} (libur piket)`));
-    if (v.bebas.length) L.push(`*Bebas bergilir:* ${v.bebas.join(', ')}`);
+    const man = v.bebas.filter(n => !away.some(a => a.startsWith(n + ' ')) && !v.rows.some(r => r.actual === n));
+    if (man.length) {
+      const idxPlaza = L.indexOf(`- *Pel Plaza:* _${config.plaza || ''}_`);
+      if (idxPlaza !== -1) {
+        L.splice(
+          idxPlaza,
+          0,
+          ...man.map(n => `- *Tugas tambahan:* _${n}${(v.w.manual || {})[n] ? ` (${(v.w.manual || {})[n]})` : ''}_`),
+          ''
+        );
+      }
+    }
+
     if (away.length) L.push(`*Tidak hadir:* ${away.join(', ')}`);
     L.push(
       '',
@@ -647,16 +859,131 @@ export default function PiketMPR({
             );
           })}
 
-          {v.bebas.map(n => (
-            <div key={`bebas-${n}`} className="row libur">
-              <div className="slot">
-                <b>Bebas bergilir</b>
-                <span>Tidak memotong jatah</span>
+          {/* Bebas bergilir / Tugas dari koordinator (Manual) */}
+          {v.bebas.map(n => {
+            if (Object.keys(v.absen).includes(n) || v.libur.includes(n)) return null;
+            const usedAt = v.rows.find(r => r.actual === n);
+            const task = (v.w.manual || {})[n] || '';
+            const isOpenMan = openSlot === 'M:' + n;
+
+            return (
+              <div key={`bebas-${n}`} className="row">
+                <div className="slot">
+                  <b>Tugas dari koordinator</b>
+                  <span>
+                    <span className="tag f">Manual</span> ditentukan tiap minggu
+                  </span>
+                </div>
+                <div className="who">
+                  <span>{n}</span>
+                  {usedAt ? (
+                    <span className="tag acc">mengganti {slotName(usedAt.k, v)}</span>
+                  ) : task ? (
+                    <span className="mut" style={{ fontSize: '13px' }}>{task}</span>
+                  ) : (
+                    <span className="empty">belum ditentukan</span>
+                  )}
+                </div>
+                <div className="acts">
+                  {!usedAt && (
+                    <button
+                      className="btn sm ghost"
+                      onClick={() => setOpenSlot(isOpenMan ? null : 'M:' + n)}
+                      aria-expanded={isOpenMan}
+                    >
+                      {task ? 'Ubah' : 'Tentukan'}
+                    </button>
+                  )}
+                </div>
+
+                {isOpenMan && (
+                  <div className="sheet">
+                    <h4>Tugas {n} minggu ini</h4>
+                    <p className="mut" style={{ fontSize: '13px', margin: 0 }}>
+                      Kalau ada slot yang kosong karena orangnya tidak hadir, {n} jadi pengganti pertama. Kalau tidak ada, tulis tugasnya di sini, misalnya Kaca sisi lain atau bantu area yang paling kotor.
+                    </p>
+                    <input
+                      type="text"
+                      id="manTask"
+                      defaultValue={task}
+                      placeholder="contoh: Kaca Timur Lt.1"
+                      style={{ width: '100%' }}
+                    />
+                    <div className="rowflex">
+                      <button
+                        className="btn pri"
+                        onClick={() => {
+                          const t = document.getElementById('manTask')?.value.trim();
+                          save(
+                            'weeks/' + week,
+                            w => {
+                              w.manual = w.manual || {};
+                              if (t) w.manual[n] = t;
+                              else delete w.manual[n];
+                              return w;
+                            },
+                            `Tugas manual ${n}, ${fmtShort(week)}`
+                          );
+                          setOpenSlot(null);
+                        }}
+                      >
+                        Simpan
+                      </button>
+                      <button className="btn ghost" onClick={() => setOpenSlot(null)}>
+                        Batal
+                      </button>
+                    </div>
+
+                    {(() => {
+                      const ji = jatahInfo(n, date.slice(0, 4));
+                      const can = ji.sisa > 0;
+                      return (
+                        <div className="rowflex" style={{ borderTop: '1px solid var(--line)', paddingTop: '10px' }}>
+                          <label htmlFor="manAbs" className="mut" style={{ fontSize: '13px' }}>
+                            Tidak hadir
+                          </label>
+                          <select id="manAbs">
+                            {can && <option value="libur">Libur piket (maks {MAXLIBUR()} orang/minggu)</option>}
+                            <option value="pulang">Pulang</option>
+                            <option value="kuliah">Agenda kuliah (KKN, dll)</option>
+                            <option value="lain">Izin lain</option>
+                            <option value="tanpa">Tanpa kabar</option>
+                          </select>
+                          <span className={`tag ${ji.sisa ? '' : 'warn'}`}>
+                            sisa {ji.sisa} dari {ji.base} pekan
+                          </span>
+                          <button
+                            className="btn sm"
+                            onClick={() => {
+                              const t = document.getElementById('manAbs')?.value;
+                              save(
+                                'weeks/' + week,
+                                w => {
+                                  if (t === 'libur') {
+                                    w.minta = (w.minta || []).filter(m => m.name !== n);
+                                    w.minta.push({ name: n, at: new Date().toISOString() });
+                                  } else {
+                                    w.absen = w.absen || {};
+                                    w.absen[n] = t;
+                                  }
+                                  if (w.manual) delete w.manual[n];
+                                  return w;
+                                },
+                                `${n} tidak hadir, ${fmtShort(week)}`
+                              );
+                              setOpenSlot(null);
+                            }}
+                          >
+                            Catat
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
-              <div className="who"><span>{n}</span></div>
-              <div className="acts"></div>
-            </div>
-          ))}
+            );
+          })}
 
           {v.libur.map(n => {
             const sub = (v.w.liburSub || {})[n];
@@ -746,6 +1073,7 @@ export default function PiketMPR({
     const ji = holder ? jatahInfo(holder, week.slice(0, 4)) : null;
     const already = holder && (v.w.minta || []).some(m => m.name === holder);
     const canLibur = holder && ji?.sisa > 0 && !already;
+    const hasMan = c.length > 0 && /tugas dari koordinator/.test(c[0].label);
 
     return (
       <div className="sheet">
@@ -847,7 +1175,7 @@ export default function PiketMPR({
               Tiap Jumat semua orang maju satu langkah. Dalam satu siklus setiap orang dapat 5 berat, 1 menengah,{' '}
               {v.seq.filter(k => SL[k].k === 'r').length} ringan
               {v.seq.includes('BEBAS')
-                ? `, dan ${v.seq.filter(k => k === 'BEBAS').length}× bebas bergilir yang tidak memotong jatah`
+                ? `, dan ${v.seq.filter(k => k === 'BEBAS').length}× tugas dari koordinator (tanpa slot tetap; jadi pengganti pertama untuk slot ringan yang ditinggal)`
                 : ''}
               . Kaca bergilir Selatan, Timur, Utara. Kotak oranye = orangnya tidak hadir minggu itu.
             </p>
@@ -920,7 +1248,7 @@ export default function PiketMPR({
                     <td
                       key={d}
                       style={{
-                        background: 'repeating-linear-gradient(135deg,var(--c-m) 0 2px,transparent 2px 6px)',
+                        background: 'repeating-linear-gradient(135deg, #DBEAFE 0 2px, transparent 2px 6px)',
                         color: 'var(--ink)'
                       }}
                     >
@@ -936,6 +1264,7 @@ export default function PiketMPR({
             <span><i className="sw" style={{ background: 'var(--c-b)' }}></i>Berat</span>
             <span><i className="sw" style={{ background: 'var(--c-m)' }}></i>Menengah</span>
             <span><i className="sw" style={{ background: 'var(--c-r)' }}></i>Ringan</span>
+            <span><i className="sw" style={{ boxShadow: 'inset 0 0 0 1px var(--mut)' }}></i>Manual</span>
             <span><i className="sw" style={{ boxShadow: 'inset 0 0 0 2px var(--accent)' }}></i>Jumat terdekat</span>
             <span><i className="sw" style={{ boxShadow: 'inset 0 0 0 2px var(--warn)' }}></i>Tidak hadir</span>
           </div>
@@ -951,7 +1280,7 @@ export default function PiketMPR({
             ))}
           </div>
           <p className="mut" style={{ fontSize: '13px', margin: '10px 0 0' }}>
-            Kode: VS/VT/VU = Vakum Selatan/Tengah/Utara Lt.1 · WC3, WC2 = WC Lt.1 · T4 = T4 Wudhu Barat & Timur · Gen = Vakum & Genset Lt.2 · WC Lt2/Lt3 = WC & T4 Wudhu di lantai itu · Media = Media/Sekre · Kaca S/T/U = Kaca Lt.1 sisi Selatan/Timur/Utara.
+            Kode: VS/VT/VU = Vakum Selatan/Tengah/Utara Lt.1 · Jongkok, Duduk = WC Jongkok, WC Duduk Lt.1 · T4 = T4 Wudhu Barat & Timur · Gen = Vakum & Genset Lt.2 · WC Lt2/Lt3 = WC & T4 Wudhu di lantai itu · Media = Media/Sekre · Kaca S/T/U = Kaca Lt.1 sisi Selatan/Timur/Utara · Manual = tugas dari koordinator, tanpa slot tetap.
           </p>
         </div>
       </div>
@@ -1065,19 +1394,27 @@ export default function PiketMPR({
     const ramHere = ram && monthKey(ram) === mk;
 
     const toggleArea = (areaId) => {
-      save('kerjabakti/' + mk, curB => {
-        curB.done = curB.done || {};
-        if (curB.done[areaId]) delete curB.done[areaId];
-        else curB.done[areaId] = todayISO();
-        return curB;
-      });
+      save(
+        'kerjabakti/' + mk,
+        curB => {
+          curB.done = curB.done || {};
+          if (curB.done[areaId]) delete curB.done[areaId];
+          else curB.done[areaId] = todayISO();
+          return curB;
+        },
+        `Kerja bakti ${mk}: ${(AREAS.find(a => a.id === areaId) || { n: areaId }).n}`
+      );
     };
 
     const handleDateChange = (newDate) => {
-      save('kerjabakti/' + mk, curB => {
-        curB.tanggal = newDate;
-        return curB;
-      });
+      save(
+        'kerjabakti/' + mk,
+        curB => {
+          curB.tanggal = newDate;
+          return curB;
+        },
+        `Kerja bakti ${mk}`
+      );
     };
 
     return (
@@ -1204,22 +1541,25 @@ export default function PiketMPR({
     };
 
     const saveEra = () => {
-      const same = era && JSON.stringify(era.members.map(m => m.name)) === JSON.stringify(currentDraft.members);
+      const sameMembers = era && JSON.stringify(era.members.map(m => m.name)) === JSON.stringify(currentDraft.members);
       const members = currentDraft.members.map((name, i) => ({ name, start: i + 1 }));
 
-      save('config/main', c => {
-        if (!same) {
-          c.eras = (c.eras || []).filter(e => e.from < currentDraft.from);
-          c.eras.push({ from: currentDraft.from, members });
-        }
-        c.plaza = currentDraft.plaza.trim();
-        c.relawan = currentDraft.relawan.split(',').map(s => s.trim()).filter(Boolean);
-        c.ramadanH1 = currentDraft.ram || null;
-        return c;
-      });
+      save(
+        'config/main',
+        c => {
+          if (!sameMembers) {
+            c.eras = (c.eras || []).filter(e => e.from < currentDraft.from);
+            c.eras.push({ from: currentDraft.from, members });
+          }
+          c.plaza = currentDraft.plaza.trim();
+          c.relawan = currentDraft.relawan.split(',').map(s => s.trim()).filter(Boolean);
+          c.ramadanH1 = currentDraft.ram || null;
+          return c;
+        },
+        'Pengaturan anggota & tanggal mulai'
+      );
 
       setDraft(null);
-      showToast('Pengaturan disimpan');
     };
 
     return (
@@ -1245,7 +1585,7 @@ export default function PiketMPR({
           <div>
             <h3 style={{ fontSize: '16px' }}>Anggota inti (urutan = urutan tabel)</h3>
             <p className="mut" style={{ fontSize: '13px', margin: '4px 0 0' }}>
-              Minimal 10 orang. 11 orang = 10 slot + Kaca bergilir. 12 orang atau lebih = tiap orang tambahan menambah satu langkah bebas bergilir.
+              Minimal 10 orang. 11 orang = 10 slot + Kaca bergilir. 12 orang atau lebih = tiap orang tambahan menambah satu langkah tugas dari koordinator (tanpa slot tetap).
             </p>
           </div>
 
@@ -1367,6 +1707,8 @@ export default function PiketMPR({
     );
   };
 
+  const logEntries = Object.entries(log).sort((a, b) => (a[1].at < b[1].at ? 1 : -1)).slice(0, 30);
+
   /* ===== MAIN RENDER ===== */
   return (
     <div className="piket-app-scope">
@@ -1376,9 +1718,18 @@ export default function PiketMPR({
             <div className="brand">
               Sistem Piket <span>MPR</span>
             </div>
-            <div className="sync on" id="sync">
-              <i></i>
-              <span>Tersimpan otomatis</span>
+            <div className="rowflex" style={{ gap: '12px' }}>
+              <div className="sync on" id="sync">
+                <i></i>
+                <span>Tersimpan otomatis</span>
+              </div>
+              <button
+                className="btn sm ghost"
+                onClick={() => setHistOpen(!histOpen)}
+                aria-expanded={histOpen}
+              >
+                Riwayat &amp; urungkan
+              </button>
             </div>
           </div>
 
@@ -1426,6 +1777,37 @@ export default function PiketMPR({
           </nav>
         </header>
 
+        {histOpen && (
+          <div className="hist" role="region" aria-label="Riwayat perubahan" style={{ marginTop: '12px' }}>
+            <div className="rowflex" style={{ justifyContent: 'space-between', marginBottom: '6px' }}>
+              <b style={{ fontSize: '15px' }}>Riwayat perubahan</b>
+              <button className="btn sm ghost" onClick={() => setHistOpen(false)}>Tutup</button>
+            </div>
+            <p className="mut" style={{ fontSize: '12px', margin: '0 0 6px' }}>
+              30 perubahan terakhir. Urungkan mengembalikan data ke sebelum perubahan itu. Kalau data yang sama sudah diubah lagi, urungkan yang lebih baru dulu. (Bisa juga tekan <kbd style={{ padding: '1px 4px', background: 'var(--line)', borderRadius: '4px' }}>Ctrl+Z</kbd>)
+            </p>
+            {logEntries.length > 0 ? (
+              logEntries.map(([id, e]) => (
+                <div key={id} className={`hrow ${e.undone ? 'undone' : ''}`}>
+                  <div>
+                    <b>{e.label}</b>
+                    <br />
+                    <small>{relTime(e.at)}{e.undone ? ' · sudah diurungkan' : ''}</small>
+                  </div>
+                  <button
+                    className={`btn sm ${e.undone ? 'ghost' : ''}`}
+                    onClick={() => undoLog(id, e.undone)}
+                  >
+                    {e.undone ? 'Ulangi' : 'Urungkan'}
+                  </button>
+                </div>
+              ))
+            ) : (
+              <p className="mut" style={{ fontSize: '13px' }}>Belum ada perubahan yang tercatat.</p>
+            )}
+          </div>
+        )}
+
         <main id="main">
           {tab === 'minggu' && renderMingguIni()}
           {tab === 'putar' && renderTabelPutar()}
@@ -1435,9 +1817,20 @@ export default function PiketMPR({
         </main>
       </div>
 
-      {toastMsg && (
+      {toastData && (
         <div className="toast" role="status">
-          {toastMsg}
+          <span>{toastData.msg}</span>
+          {toastData.act && (
+            <button
+              onClick={() => {
+                const fn = toastData.act.fn;
+                setToastData(null);
+                fn();
+              }}
+            >
+              {toastData.act.label}
+            </button>
+          )}
         </div>
       )}
     </div>
