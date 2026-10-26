@@ -1135,3 +1135,78 @@
 .piket-app-scope .bar7 i.x {
   background: var(--warn);
 }
+
+/* Kompensasi & Rekomendasi Penukaran */
+.piket-app-scope .tag.comp-plus {
+  background: #DCFCE7;
+  color: #15803D;
+  border: 1px solid #BBF7D0;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.piket-app-scope .tag.comp-minus {
+  background: #FEF3C7;
+  color: #B45309;
+  border: 1px solid #FDE68A;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.piket-app-scope .rec-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.08);
+}
+
+.piket-app-scope .rec-banner.warn {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  box-shadow: 0 2px 8px rgba(194, 65, 12, 0.08);
+}
+
+.piket-app-scope .rec-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+  min-width: 260px;
+}
+
+.piket-app-scope .rec-icon {
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.piket-app-scope .rec-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent);
+  margin-bottom: 3px;
+}
+
+.piket-app-scope .rec-banner.warn .rec-title {
+  color: var(--warn);
+}
+
+.piket-app-scope .rec-desc {
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.piket-app-scope .rec-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}

@@ -25,6 +25,7 @@ const CODE = {
 const KL = { b: 'Berat', m: 'Menengah', r: 'Ringan', f: 'Manual' };
 const BASE = ['VS', 'GEN', 'WC3', 'L2', 'VT', 'T4', 'WC2', 'L3', 'VU', 'MED'];
 const ORDER = ['VS', 'VT', 'VU', 'WC3', 'WC2', 'T4', 'GEN', 'L2', 'L3', 'MED', 'KACA'];
+const BARE_MINIMUM_SLOTS = ['VS', 'VT', 'VU', 'WC3', 'WC2'];
 const KACA_SIDES = ['Selatan', 'Timur', 'Utara'];
 const ABS = {
   libur: 'Libur piket',
@@ -135,6 +136,15 @@ const DEFAULT_WEEKS = {
     manual: {
       'Nabiel': 'Sarang Laba-Laba Lt.1'
     }
+  },
+  '2026-10-23': {
+    minta: [
+      { name: 'Raihan', at: '2026-10-23T00:00:00.000Z' }
+    ],
+    over: {
+      'WC2': 'Zufar',
+      'KACA': 'Mujahid'
+    }
   }
 };
 
@@ -193,6 +203,17 @@ export default function PiketMPR({
             '2026-10-16': {
               ...DEFAULT_WEEKS['2026-10-16'],
               ...(parsed['2026-10-16'] || {})
+            },
+            '2026-10-23': {
+              ...DEFAULT_WEEKS['2026-10-23'],
+              ...(parsed['2026-10-23'] || {}),
+              over: {
+                ...DEFAULT_WEEKS['2026-10-23'].over,
+                ...(parsed['2026-10-23']?.over || {})
+              },
+              minta: parsed['2026-10-23']?.minta?.length
+                ? parsed['2026-10-23'].minta
+                : DEFAULT_WEEKS['2026-10-23'].minta
             }
           };
         }
@@ -227,8 +248,27 @@ export default function PiketMPR({
       localStorage.setItem('piket_config_v1', JSON.stringify(cloudData.piket_config));
     }
     if (cloudData.piket_weeks) {
-      setWeeks(cloudData.piket_weeks);
-      localStorage.setItem('piket_weeks_v1', JSON.stringify(cloudData.piket_weeks));
+      const merged = {
+        ...DEFAULT_WEEKS,
+        ...cloudData.piket_weeks,
+        '2026-10-16': {
+          ...DEFAULT_WEEKS['2026-10-16'],
+          ...(cloudData.piket_weeks['2026-10-16'] || {})
+        },
+        '2026-10-23': {
+          ...DEFAULT_WEEKS['2026-10-23'],
+          ...(cloudData.piket_weeks['2026-10-23'] || {}),
+          over: {
+            ...DEFAULT_WEEKS['2026-10-23'].over,
+            ...(cloudData.piket_weeks['2026-10-23']?.over || {})
+          },
+          minta: cloudData.piket_weeks['2026-10-23']?.minta?.length
+            ? cloudData.piket_weeks['2026-10-23'].minta
+            : DEFAULT_WEEKS['2026-10-23'].minta
+        }
+      };
+      setWeeks(merged);
+      localStorage.setItem('piket_weeks_v1', JSON.stringify(merged));
     }
     if (cloudData.piket_kerjabakti) {
       setBakti(cloudData.piket_kerjabakti);
@@ -516,6 +556,171 @@ export default function PiketMPR({
     return { ...p, rows, absen, w, libur, rejected: lp.rejected };
   };
 
+  /* ===== KOMPENSASI & FAIRNESS ENGINE ===== */
+  const compensationData = useMemo(() => {
+    const era = config?.eras?.[0];
+    if (!era) return { balances: {}, history: {}, recommendations: [] };
+
+    const balances = {};
+    const history = {};
+    const allMembers = era.members.map(m => m.name);
+    allMembers.forEach(m => {
+      balances[m] = 0;
+      history[m] = [];
+    });
+
+    const getWeight = (slotKey) => {
+      if (!slotKey || slotKey === 'ABSEN') return 0;
+      if (['VS', 'VT', 'VU', 'WC3', 'WC2'].includes(slotKey)) return 2; // Berat
+      if (slotKey === 'T4') return 1; // Menengah
+      return 0; // Ringan / Bebas
+    };
+
+    const sortedDates = Object.keys(weeks).filter(d => d < week).sort();
+
+    sortedDates.forEach(d => {
+      const p = plannedWeek(d);
+      if (!p) return;
+      const w = weeks[d] || {};
+      const over = w.over || {};
+      const absen = w.absen || {};
+      const lp = liburPlanMemo[d] || { approved: [] };
+      const liburNames = new Set(lp.approved.map(r => r.name));
+      const absentNames = new Set([...Object.keys(absen), ...liburNames]);
+
+      allMembers.forEach(m => {
+        let pSlot = Object.keys(p.bySlot).find(k => p.bySlot[k] === m);
+        if (!pSlot && p.bebas.includes(m)) pSlot = 'BEBAS';
+
+        let aSlot = null;
+        if (absentNames.has(m)) {
+          aSlot = 'ABSEN';
+        } else {
+          const overEntry = Object.entries(over).find(([, name]) => name === m);
+          if (overEntry) {
+            aSlot = overEntry[0];
+          } else if (pSlot && pSlot !== 'BEBAS' && !Object.prototype.hasOwnProperty.call(over, pSlot)) {
+            aSlot = pSlot;
+          } else if (pSlot === 'BEBAS') {
+            aSlot = 'BEBAS';
+          }
+        }
+
+        const pWeight = getWeight(pSlot);
+        const aWeight = getWeight(aSlot);
+        const diff = aWeight - pWeight;
+
+        if (diff > 0) {
+          balances[m] = (balances[m] || 0) + diff;
+          history[m].push({
+            date: d,
+            diff,
+            desc: `Mengerjakan tugas berat (${SL[aSlot]?.n || aSlot}) saat jadwal aslinya ${pSlot === 'BEBAS' ? 'Manual' : (SL[pSlot]?.n || pSlot)}`
+          });
+        } else if (diff < 0 && aSlot !== 'ABSEN') {
+          balances[m] = (balances[m] || 0) + diff;
+          history[m].push({
+            date: d,
+            diff,
+            desc: `Mendapat tugas ringan (${SL[aSlot]?.n || aSlot}) menggantikan jadwal aslinya (${SL[pSlot]?.n || pSlot})`
+          });
+        }
+      });
+    });
+
+    // Recommendations for the currently viewed week
+    const currentPlan = plannedWeek(week);
+    const recommendations = [];
+
+    if (currentPlan) {
+      const curW = weeks[week] || {};
+      const curOver = curW.over || {};
+      const curAbsen = curW.absen || {};
+      const curLp = liburPlanMemo[week] || { approved: [] };
+      const curLibur = new Set(curLp.approved.map(r => r.name));
+      const curAway = new Set([...Object.keys(curAbsen), ...curLibur]);
+
+      // 1. Bare Minimum Check
+      const missingBareSlots = BARE_MINIMUM_SLOTS.filter(k => {
+        const hasOver = Object.prototype.hasOwnProperty.call(curOver, k);
+        const holder = hasOver ? curOver[k] : currentPlan.bySlot[k];
+        return !holder || curAway.has(holder);
+      });
+
+      if (missingBareSlots.length > 0) {
+        recommendations.push({
+          id: 'bare-minimum-alert',
+          type: 'bare_minimum',
+          isUrgent: true,
+          title: `⚠️ Bare Minimum Belum Terpenuhi (${BARE_MINIMUM_SLOTS.length - missingBareSlots.length}/${BARE_MINIMUM_SLOTS.length})`,
+          desc: `Slot wajib Lt.1 belum ada pengisi: ${missingBareSlots.map(k => SL[k].n).join(', ')}. Slot ini tidak boleh kosong untuk Sholat Jumat.`,
+          action: null
+        });
+      }
+
+      // 2. Compensation recommendation:
+      const membersWithCredit = Object.entries(balances).filter(([, b]) => b > 0);
+      membersWithCredit.forEach(([name, credit]) => {
+        let curPlannedSlot = Object.keys(currentPlan.bySlot).find(k => currentPlan.bySlot[k] === name);
+        if (!curPlannedSlot && currentPlan.bebas.includes(name)) curPlannedSlot = 'BEBAS';
+
+        const hasOver = Object.entries(curOver).find(([, n]) => n === name);
+        const activeSlot = hasOver ? hasOver[0] : (Object.prototype.hasOwnProperty.call(curOver, curPlannedSlot) ? null : curPlannedSlot);
+
+        if (activeSlot && ['VS', 'VT', 'VU', 'WC3', 'WC2'].includes(activeSlot)) {
+          const candidatePartners = currentPlan.era.members
+            .map(m => m.name)
+            .filter(n => n !== name && !curAway.has(n))
+            .map(n => {
+              const nHasOver = Object.entries(curOver).find(([, x]) => x === n);
+              const nPlanned = Object.keys(currentPlan.bySlot).find(k => currentPlan.bySlot[k] === n) || (currentPlan.bebas.includes(n) ? 'BEBAS' : null);
+              const nSlot = nHasOver ? nHasOver[0] : (Object.prototype.hasOwnProperty.call(curOver, nPlanned) ? null : nPlanned);
+              return { name: n, slot: nSlot, balance: balances[n] || 0 };
+            })
+            .filter(c => c.slot && !['VS', 'VT', 'VU', 'WC3', 'WC2', 'T4'].includes(c.slot))
+            .sort((a, b) => a.balance - b.balance);
+
+          const partner = candidatePartners[0];
+
+          recommendations.push({
+            id: `comp-swap-${name}`,
+            type: 'compensation',
+            isUrgent: false,
+            title: `💡 Rekomendasi Kompensasi: ${name} (Tabungan: +${credit})`,
+            desc: partner
+              ? `${name} menanggung beban tugas berat di pekan sebelumnya. Pekan ini terjadwal ${SL[activeSlot]?.n || activeSlot}. Disarankan tukar dengan ${partner.name} (${partner.slot === 'BEBAS' ? 'Manual/Bebas' : (SL[partner.slot]?.n || partner.slot)}).`
+              : `${name} memiliki hak kompensasi (+${credit}), namun terjadwal ${SL[activeSlot]?.n || activeSlot} pekan ini.`,
+            actionLabel: partner ? `Tukar dengan ${partner.name}` : null,
+            action: partner ? () => {
+              save(
+                'weeks/' + week,
+                w => {
+                  w.over = w.over || {};
+                  w.over[activeSlot] = partner.name;
+                  if (partner.slot !== 'BEBAS') {
+                    w.over[partner.slot] = name;
+                  }
+                  return w;
+                },
+                `Kompensasi: Tukar ${name} & ${partner.name}, ${fmtShort(week)}`
+              );
+            } : null
+          });
+        } else if (credit > 0 && !curAway.has(name)) {
+          recommendations.push({
+            id: `comp-info-${name}`,
+            type: 'info',
+            isUrgent: false,
+            title: `⭐ Kompensasi Aktif: ${name} (+${credit} Poin)`,
+            desc: `${name} saat ini memegang tugas ringan/sedang. Tabungan kompensasi (+${credit}) tersimpan dan siap melindungi saat jadwal rotasinya tiba di tugas berat.`
+          });
+        }
+      });
+    }
+
+    return { balances, history, recommendations };
+  }, [weeks, config, week, liburPlanMemo]);
+
   /* ===== CANDIDATES ALGORITHM ===== */
   const candidates = (v, k) => {
     const busy = new Set(v.rows.map(r => r.actual).filter(Boolean));
@@ -593,7 +798,24 @@ export default function PiketMPR({
         note: 'Pilihan terakhir: berat dua minggu berturut-turut. Slot WC Lt.3 dikosongkan.'
       });
     }
-    return out;
+
+    return out.map(o => {
+      const b = compensationData.balances[o.name] || 0;
+      if (heavy && b < 0) {
+        return {
+          ...o,
+          label: `${o.label} ⭐`,
+          note: `${o.note} · Prioritas kompensasi (kredit: ${b}), pernah diringankan dari tugas berat.`
+        };
+      }
+      if (heavy && b > 0) {
+        return {
+          ...o,
+          note: `${o.note} · ⚠️ Punya tabungan kompensasi (+${b}). Hindari membebani jika ada opsi lain.`
+        };
+      }
+      return o;
+    });
   };
 
   /* ===== ACTION HANDLERS ===== */
@@ -796,6 +1018,7 @@ export default function PiketMPR({
     const cyc = Math.floor(v.idx / v.n) + 1;
     const step = (v.idx % v.n) + 1;
     const absList = Object.entries(v.absen);
+    const missingBare = v.rows.filter(r => BARE_MINIMUM_SLOTS.includes(r.k) && (!r.actual || away.includes(r.actual)));
 
     return (
       <div>
@@ -825,11 +1048,41 @@ export default function PiketMPR({
             <div className="v" style={{ fontSize: '18px', paddingTop: '4px' }}>{v.libur.join(', ') || '–'}</div>
             <div className="l">libur piket</div>
           </div>
+          <div className="sm-i">
+            <div className="v num" style={{ color: missingBare.length ? 'var(--warn)' : 'var(--accent)' }}>
+              {BARE_MINIMUM_SLOTS.length - missingBare.length}/{BARE_MINIMUM_SLOTS.length}
+            </div>
+            <div className="l">bare minimum</div>
+          </div>
         </div>
 
         {v.rejected.length > 0 && (
           <div className="notice warn" style={{ marginBottom: '12px' }}>
             {v.rejected.map(r => `Libur piket ${r.name} tidak disetujui: ${r.why}. `).join(' ')} Yang tidak disetujui tetap piket sesuai jadwal.
+          </div>
+        )}
+
+        {/* Rekomendasi Penukaran & Notifikasi Bare Minimum */}
+        {compensationData.recommendations.length > 0 && (
+          <div style={{ marginBottom: '14px' }}>
+            {compensationData.recommendations.map(rec => (
+              <div key={rec.id} className={`rec-banner ${rec.isUrgent ? 'warn' : ''}`}>
+                <div className="rec-content">
+                  <span className="rec-icon">{rec.isUrgent ? '⚠️' : '💡'}</span>
+                  <div>
+                    <div className="rec-title">{rec.title}</div>
+                    <div className="rec-desc">{rec.desc}</div>
+                  </div>
+                </div>
+                {rec.action && (
+                  <div className="rec-actions">
+                    <button className="btn sm pri" onClick={rec.action}>
+                      {rec.actionLabel || 'Terapkan Rekomendasi'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
 
@@ -856,6 +1109,16 @@ export default function PiketMPR({
                       {r.changed && r.planned ? <span className="was">{r.planned}</span> : null}
                       <span>{r.actual}</span>
                       {tag}
+                      {compensationData.balances[r.actual] > 0 && (
+                        <span className="tag comp-plus" title={`Tabungan kompensasi: +${compensationData.balances[r.actual]} poin`}>
+                          +{compensationData.balances[r.actual]} kompensasi
+                        </span>
+                      )}
+                      {compensationData.balances[r.actual] < 0 && (
+                        <span className="tag comp-minus" title={`Pernah diringankan: ${compensationData.balances[r.actual]} poin`}>
+                          {compensationData.balances[r.actual]} kompensasi
+                        </span>
+                      )}
                     </>
                   ) : (
                     <>
@@ -906,6 +1169,16 @@ export default function PiketMPR({
                 </div>
                 <div className="who">
                   <span>{n}</span>
+                  {compensationData.balances[n] > 0 && (
+                    <span className="tag comp-plus" title={`Tabungan kompensasi: +${compensationData.balances[n]} poin`}>
+                      +{compensationData.balances[n]} kompensasi
+                    </span>
+                  )}
+                  {compensationData.balances[n] < 0 && (
+                    <span className="tag comp-minus" title={`Pernah diringankan: ${compensationData.balances[n]} poin`}>
+                      {compensationData.balances[n]} kompensasi
+                    </span>
+                  )}
                   {usedAt ? (
                     <span className="tag acc">mengganti {slotName(usedAt.k, v)}</span>
                   ) : task ? (
@@ -1366,6 +1639,7 @@ export default function PiketMPR({
                   <th>Nama</th>
                   <th>Terpakai</th>
                   <th className="n">Sisa</th>
+                  <th>Saldo Kompensasi</th>
                   <th>Rincian</th>
                 </tr>
               </thead>
@@ -1380,6 +1654,7 @@ export default function PiketMPR({
                   const det = j.list
                     .map(e => (e.type === 'riwayat' ? fmtShort(e.date) : `${fmtShort(e.date)} (${(ABS[e.type] || e.type).toLowerCase()})`))
                     .join(' · ');
+                  const comp = compensationData.balances[n] || 0;
 
                   return (
                     <tr key={n}>
@@ -1392,6 +1667,15 @@ export default function PiketMPR({
                       <td className="n">
                         {j.sisa}
                         {j.lebih ? <span className="tag warn" style={{ marginLeft: '4px' }}>lebih {j.lebih}</span> : null}
+                      </td>
+                      <td>
+                        {comp > 0 ? (
+                          <span className="tag comp-plus">+{comp} (Berhak Ringan)</span>
+                        ) : comp < 0 ? (
+                          <span className="tag comp-minus">{comp} (Pernah Diringankan)</span>
+                        ) : (
+                          <span className="mut" style={{ fontSize: '13px' }}>0 (Impas)</span>
+                        )}
                       </td>
                       <td className="mut" style={{ fontSize: '12px' }}>
                         {det || 'Belum pernah tidak hadir'}
@@ -1408,6 +1692,37 @@ export default function PiketMPR({
           <span><i className="sw" style={{ background: 'var(--c-m)' }}></i>Terpakai</span>
           <span><i className="sw" style={{ background: 'var(--warn)' }}></i>Lebih dari jatah</span>
           <span><i className="sw" style={{ background: 'var(--line)' }}></i>Sisa</span>
+        </div>
+
+        {/* Riwayat Pengorbanan & Kompensasi */}
+        <div className="panel" style={{ padding: '16px', marginTop: '14px' }}>
+          <div className="eyebrow" style={{ marginBottom: '6px' }}>Keadilan Beban Kerja (Fairness & Compensation)</div>
+          <h3 style={{ fontSize: '16px', margin: '0 0 8px' }}>Riwayat Penukaran & Nombok Tugas</h3>
+          <p className="mut" style={{ fontSize: '13px', margin: '0 0 12px' }}>
+            Jika seseorang bersedia menggantikan tugas berat (Vacuum Lt.1 / WC Lt.1) saat jadwal aslinya ringan, sistem otomatis mencatat hak kompensasi agar ia mendapat giliran tugas ringan di pekan berikutnya.
+          </p>
+          <div style={{ display: 'grid', gap: '8px' }}>
+            {members.filter(m => (compensationData.history[m] || []).length > 0).length === 0 ? (
+              <p className="mut" style={{ fontSize: '13px', margin: 0 }}>Belum ada catatan penukaran beban tugas antar anggota.</p>
+            ) : (
+              members.filter(m => (compensationData.history[m] || []).length > 0).map(m => (
+                <div key={m} style={{ padding: '10px 14px', background: 'var(--surface-hover)', borderRadius: '8px' }}>
+                  <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                    {m} {compensationData.balances[m] > 0 ? (
+                      <span className="tag comp-plus" style={{ marginLeft: '6px' }}>+{compensationData.balances[m]} Kompensasi</span>
+                    ) : compensationData.balances[m] < 0 ? (
+                      <span className="tag comp-minus" style={{ marginLeft: '6px' }}>{compensationData.balances[m]} Kompensasi</span>
+                    ) : null}
+                  </div>
+                  {(compensationData.history[m] || []).map((h, i) => (
+                    <div key={i} className="mut" style={{ fontSize: '13px', paddingLeft: '8px', borderLeft: '2px solid var(--accent)', margin: '4px 0' }}>
+                      <b>{fmtShort(h.date)}:</b> {h.desc}
+                    </div>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     );
@@ -1538,7 +1853,9 @@ export default function PiketMPR({
         from: addDays(upcomingFriday(), 7),
         plaza: config.plaza || '',
         relawan: (config.relawan || []).join(', '),
-        ram: config.ramadanH1 || ''
+        ram: config.ramadanH1 || '',
+        maxLiburPerMinggu: config.maxLiburPerMinggu ?? 1,
+        jatahPekan: config.jatahPekan ?? 7
       };
 
     const n = currentDraft.members.length;
@@ -1584,9 +1901,11 @@ export default function PiketMPR({
           c.plaza = currentDraft.plaza.trim();
           c.relawan = currentDraft.relawan.split(',').map(s => s.trim()).filter(Boolean);
           c.ramadanH1 = currentDraft.ram || null;
+          c.maxLiburPerMinggu = Math.max(1, parseInt(currentDraft.maxLiburPerMinggu) || 1);
+          c.jatahPekan = Math.max(1, parseInt(currentDraft.jatahPekan) || 7);
           return c;
         },
-        'Pengaturan anggota & tanggal mulai'
+        'Pengaturan anggota, kuota libur & tanggal mulai'
       );
 
       setDraft(null);
@@ -1706,6 +2025,34 @@ export default function PiketMPR({
               value={currentDraft.ram}
               onChange={(e) => setDraft({ ...currentDraft, ram: e.target.value })}
             />
+          </div>
+
+          <div className="rowflex">
+            <label htmlFor="maxLib" style={{ fontWeight: 600, fontSize: '14px' }}>Maksimal libur piket per minggu</label>
+            <input
+              type="number"
+              id="maxLib"
+              min="1"
+              max="12"
+              value={currentDraft.maxLiburPerMinggu}
+              onChange={(e) => setDraft({ ...currentDraft, maxLiburPerMinggu: e.target.value })}
+              style={{ width: '80px' }}
+            />
+            <span className="mut" style={{ fontSize: '12px' }}>orang (tingkatkan jika sedang musim KKN / Magang)</span>
+          </div>
+
+          <div className="rowflex">
+            <label htmlFor="jatPek" style={{ fontWeight: 600, fontSize: '14px' }}>Jatah libur per tahun</label>
+            <input
+              type="number"
+              id="jatPek"
+              min="1"
+              max="25"
+              value={currentDraft.jatahPekan}
+              onChange={(e) => setDraft({ ...currentDraft, jatahPekan: e.target.value })}
+              style={{ width: '80px' }}
+            />
+            <span className="mut" style={{ fontSize: '12px' }}>pekan per anggota</span>
           </div>
 
           {!ok && (
